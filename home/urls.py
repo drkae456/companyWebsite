@@ -1,7 +1,11 @@
 from django.urls import include, path
 
 from django.contrib import admin
+
+from .views import Index, DetailArticleView, LikeArticle, UpskillingView, UpskillingSkillView, SearchResults, UpskillSuccessView, UpskillingJoinProjectView, join_project, list_careers,career_detail,career_application, feedback_view, delete_feedback, policy_deployment
+
 from .views import Index, DetailArticleView, LikeArticle, UpskillingView, UpskillingSkillView, SearchResults, UpskillSuccessView, UpskillingJoinProjectView, join_project, list_careers, internships, job_alerts,career_detail,career_application, feedback_view, delete_feedback, career_discover
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django_ratelimit.decorators import ratelimit
@@ -26,10 +30,13 @@ urlpatterns = [
     path('profile/details/', views.profile_details, name='profile_details'),
     path('malware_viz/joinus', views.malware_joinus, name='malware_viz_joinus'),
     path('appattack/', views.appattack, name='appattack'),
+    path('skills/', views.skills_view, name='Appattack_Skills'),
     path('appattack/join', views.appattack_join, name='appattack_join'),
     path('malware_viz/products_and_services', views.products_services, name='malware_products'),
     path('malware_viz/', views.malwarehome, name='malware_viz_main'),
+    path('malware_viz/skills/', views.malware_skills, name='malware_skills'),
     path('ptgui_viz/', views.ptguihome, name='ptgui_viz_main'),
+    path('ptgui_viz/skills/', views.ptgui_skills, name='ptgui_skills'),
     path('ptgui_viz/contact-us/', views.ptgui_contact_us, name='ptgui_contact-us'),
     path('maintenance', views.http_503, name='maintenance'),
     path('ptgui_viz/faq/', views.faq, name='faq'),
@@ -42,7 +49,10 @@ urlpatterns = [
     path('ptgui_viz/tools/amass/', views.amass_view, name='tool_amass'),
     path('ptgui_viz/tools/arpaname/', views.arpaname_view, name='tool_arpaname'),
     path('smishing_detection', views.smishing_detection, name='smishing_detection_main'),
-    #path('smishing_detection/join_us', views.smishing_detection_join_us, name='smishingdetection_join_us'),
+    path('smishing_detection/skills/', views.smishing_skills, name='smishing_skills'),
+
+
+     #path('smishing_detection/join_us', views.smishing_detection_join_us, name='smishingdetection_join_us'),
     path('upskilling/', UpskillingView.as_view(), name='upskilling'),
     path('upskilling/<slug:slug>/', UpskillingSkillView.as_view(), name='upskilling_skill'),
     path('update-progress/<int:progress_id>/', views.update_progress, name='update_progress'),
@@ -50,8 +60,10 @@ urlpatterns = [
     path('success/', UpskillSuccessView, name='success'),
     path('smishing_detection/join_us', views.smishingdetection_join_us, name='smishingdetection_join_us'),
     path('deakinThreatmirror/', views.Deakin_Threat_mirror_main, name='Deakin_Threat_mirror_main'),
+    path('deakinThreatmirror/skills/', views.deakinthreatmirror_skills, name='deakinthreatmirror_skills'),
     path('deakinThreatmirror/join_us', views.Deakin_Threat_mirror_joinus, name='threat_mirror_join_us'),
     path('vr/', views.Vr_main, name='Vr_main'),
+    path('vr/skills/', views.cybersafe_vr_skills, name='cybersafe_vr_skills'),
     path('vr/join_us', views.vr_join_us, name='cybersafe_vr_join_us'),
     path('upskilling/complete/<slug:slug>/', MarkSkillCompletedView.as_view(), name='complete_skill'),
     # path('contact-central/', views.Contact_central, name='contact-central'),
@@ -69,6 +81,7 @@ urlpatterns = [
     # path('contact-central/', views.Contact_central, name='contact-central'),
      path('appattack/join/', views.appattack_join, name='appattack_join'),
       path('form_success/', views.form_success, name='form_success'),
+      path('policy-deployment/', views.policy_deployment, name='policy_deployment'),
     
     
     
@@ -116,7 +129,16 @@ urlpatterns = [
     path('ptgui_viz/join_us', views.ptgui_join_us, name='ptgui_join_us'),
     
  
-
+    path('blogpage/', views.blogpage, name='blogpage'),
+    path('blogpage/delete/<int:id>', views.delete_blogpage, name='delete_blogpage'),
+    path('edit_blogpage/<int:id>/', views.edit_blogpage, name='edit_blogpage'),
+    path('adminblogpage/', views.adminblogpage, name='adminblogpage'),
+    path('adminblogpage/approve/<int:id>/', views.approve_blogpage, name='approve_blogpage'),
+    path('adminblogpage/reject/<int:id>/', views.reject_blogpage, name='reject_blogpage'),
+    path('publishedblog/', views.publishedblog, name='publishedblog'),
+    path('report-blog/', views.report_blog, name='report_blog'),
+    path('reports/', views.adminblogreports, name='reports'),
+    path('reported/download/', views.download_reported_blogs, name='download_reported_blogs'),
 
     path('challenges/', views.challenge_list, name='challenge_list'),
     path('challenges/quiz/', views.cyber_quiz, name='cyber_quiz'),
@@ -144,6 +166,7 @@ urlpatterns = [
     path('feedback/', views.feedback_view, name='feedback'),
     path('feedback/delete/<int:id>', delete_feedback, name='delete_feedback'),
 
+
     path("appattack/reports/", views.comphrehensive_reports, name="comphrehensive_reports"),
     path("appattack/pen-testing/", views.pen_testing, name="pen-testing"),
     path("appattack/secure-code-review/", views.secure_code_review, name="secure-code-review"),
@@ -152,8 +175,5 @@ urlpatterns = [
 
     path('account/delete/', delete_account, name='delete-account')
 
-    
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-
