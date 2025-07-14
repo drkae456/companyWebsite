@@ -1,6 +1,19 @@
-version: '3.8'
-
 services:
+  db:
+    container_name: postgres_db
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: companywebsite_db
+      POSTGRES_USER: companywebsite_user
+      POSTGRES_PASSWORD: companywebsite_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - web_network
+    ports:
+      - "5432:5432"
+
   web:
     container_name: django_app
     build: .
@@ -9,15 +22,22 @@ services:
       - .:/app  # Mount project code
       - staticfiles:/app/static
       - mediafiles:/app/media
-      - ./db.sqlite3:/app/db.sqlite3  # Mount database file
       # Keep custom_static mount if you have static files there
       - ./custom_static:/app/custom_static 
     networks:
       - web_network
     environment:
       - DEBUG=0
+      - DB_ENGINE=postgresql
+      - DB_HOST=db
+      - DB_NAME=companywebsite_db
+      - DB_USERNAME=companywebsite_user
+      - DB_PASS=companywebsite_pass
+      - DB_PORT=5432
     expose:
       - "8000:80"
+    depends_on:
+      - db
     # Run collectstatic and migrate before starting gunicorn
     command: >
       sh -c "python manage.py makemigrations &&
@@ -50,4 +70,5 @@ networks:
 volumes:
   staticfiles: {}
   mediafiles: {}
+  postgres_data: {}
  

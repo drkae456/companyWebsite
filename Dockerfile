@@ -27,9 +27,5 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/static /app/media
 
-# Run migrations
-RUN python manage.py makemigrations
-RUN python manage.py migrate
-
 # Run gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi"]

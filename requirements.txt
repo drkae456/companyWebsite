@@ -43,6 +43,9 @@ Pillow==11.0.0
 # Password Hashing
 bcrypt==4.2.1
 
+# Database
+psycopg2-binary==2.9.9
+
 # CAPTCHA
 django-simple-captcha==0.6.0
 
