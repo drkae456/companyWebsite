@@ -21,11 +21,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN python -m textblob.download_corpora
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab', raise_on_error=False); nltk.download('stopwords'); nltk.download('wordnet'); nltk.download('averaged_perceptron_tagger')"
 
-# Copy project
-COPY . .
-
 # Create necessary directories
 RUN mkdir -p /app/static /app/media
 
-# Run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "core.wsgi"]
+# Don't copy source code - it will be mounted as a volume for development
+# This allows for hot reloading without rebuilds
+
+# Default command (can be overridden in docker-compose)
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
