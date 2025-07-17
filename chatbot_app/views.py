@@ -160,7 +160,60 @@ project_responses = {
     • Community-driven development<br>
     <br>🔗 <a href="/deakinThreatmirror/" class="learn-more-link">Learn more here</a>
     <br>Want to get involved? <a href="/accounts/register/" class="learn-more-link">Sign up here</a>""",
+    
+    'policy_deployment': lambda: response_template.module.policy_deployment_engine(),
+    'policy_deployment_engine': lambda: response_template.module.policy_deployment_engine(),
+    'policy': lambda: response_template.module.policy_deployment_engine(),
 }
+
+
+def check_project_response(message_text):
+    """Check if message matches any project keywords and return the corresponding response."""
+    message_lower = message_text.lower().strip()
+    logger.debug(f"Checking project responses for: '{message_lower}'")
+    
+    # Check each project response key for matches
+    for key, response in project_responses.items():
+        # Direct keyword match
+        if key in message_lower:
+            logger.info(f"Found project response match: '{key}' in '{message_lower}'")
+            if callable(response):
+                return response()
+            return response
+        
+        # Check for partial matches with common variations
+        variations = [
+            key.replace('_', ' '),
+            key.replace('_', '-'),
+            key.replace('_', ''),
+        ]
+        
+        for variation in variations:
+            if variation in message_lower:
+                logger.info(f"Found project response variation match: '{variation}' in '{message_lower}'")
+                if callable(response):
+                    return response()
+                return response
+    
+    # Check for specific project keywords that might not be exact matches
+    project_keywords = {
+        'policy': ['policy_deployment', 'policy_deployment_engine', 'policy'],
+        'deployment': ['policy_deployment', 'policy_deployment_engine'],
+        'engine': ['policy_deployment_engine'],
+    }
+    
+    for keyword, possible_keys in project_keywords.items():
+        if keyword in message_lower:
+            for possible_key in possible_keys:
+                if possible_key in project_responses:
+                    logger.info(f"Found project response keyword match: '{keyword}' -> '{possible_key}'")
+                    response = project_responses[possible_key]
+                    if callable(response):
+                        return response()
+                    return response
+    
+    logger.debug("No project response match found")
+    return None
 
 
 def chat_view(request):
@@ -335,6 +388,17 @@ def format_search_result(result: dict) -> str:
                 description=r.get('description', ''),
                 slug=r.get('slug', '')
             ),
+            'leaderboardtable': lambda r: response_template.module.LeaderBoardTable(
+                category=r.get('category', ''),
+                user=r.get('user', ''),
+                total_points=r.get('total_points', 0)
+            ),
+            'blogpost': lambda r: response_template.module.blog_post(
+                title=r.get('title', ''),
+                body=r.get('body', ''),
+                page_name=r.get('page_name', ''),
+                created_at=r.get('created_at', '')
+            ),
             'webpage': lambda r: response_template.module.webpage(
                 title=r.get('title', ''),
                 url=r.get('url', ''),
@@ -441,25 +505,31 @@ def message_api(request, session_id):
             language = detect_language(message_text)
             logger.debug(f"Detected language: {language}")
             
-            # Perform search with original message text
-            logger.info("Initiating search")
-            search_results = perform_search(message_text)
-            logger.info(f"Search completed: {len(search_results)} results found")
-            
-            # Generate reply based on search results
-            if search_results:
-                # Format each result and combine them
-                formatted_responses = []
-                for i, result in enumerate(search_results, 1):
-                    if len(search_results) > 1:
-                        formatted_responses.append(f"\nResult {i}:")
-                    formatted_responses.append(format_search_result(result))
-                
-                reply = "\n".join(formatted_responses)
-                logger.debug(f"Generated formatted reply with {len(search_results)} results")
+            # Check for project responses first (before search engine)
+            project_response = check_project_response(message_text)
+            if project_response:
+                logger.info(f"Found project response for query: {message_text}")
+                reply = project_response
             else:
-                reply = "I apologize, but I couldn't find specific information matching your query. Could you try rephrasing your question?"
-                logger.warning(f"No search results found for query: {message_text}")
+                # Perform search with original message text
+                logger.info("Initiating search")
+                search_results = perform_search(message_text)
+                logger.info(f"Search completed: {len(search_results)} results found")
+                
+                # Generate reply based on search results
+                if search_results:
+                    # Format each result and combine them
+                    formatted_responses = []
+                    for i, result in enumerate(search_results, 1):
+                        if len(search_results) > 1:
+                            formatted_responses.append(f"\nResult {i}:")
+                        formatted_responses.append(format_search_result(result))
+                    
+                    reply = "\n".join(formatted_responses)
+                    logger.debug(f"Generated formatted reply with {len(search_results)} results")
+                else:
+                    reply = "I apologize, but I couldn't find specific information matching your query. Could you try rephrasing your question?"
+                    logger.warning(f"No search results found for query: {message_text}")
             
             # Save bot reply with analysis data
             analysis_data = {
@@ -635,76 +705,84 @@ def general_message_api(request):
             }, status=500)
         
         # Process message and get response
-        # Extract keywords for search
-        try:
-            keywords = extract_keywords(message_text)
-            logger.debug(f"Extracted keywords: {keywords}")
-        except Exception as search_error:
-            logger.error(f"Error extracting keywords: {str(search_error)}", exc_info=True)
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Error analyzing message',
-                'search_error': str(search_error)
-            }, status=500)
-        
-        # Perform search with extracted keywords
-        try:
-            # Instead of passing keywords directly, pass the original message text
-            # to avoid list strip() issue in perform_search
-            search_results = perform_search(message_text, limit=3)
-            logger.debug(f"Search results: {search_results}")
-        except Exception as search_error:
-            logger.error(f"Error in search engine: {str(search_error)}", exc_info=True)
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Error searching database',
-                'search_error': str(search_error)
-            }, status=500)
-        
-        # Prepare response based on search results
-        try:
-            # Format search results - perform_search now returns a list of dictionaries
-            if search_results and isinstance(search_results, list):
-                # Format search result
-                formatted_results = []
-                for result in search_results:
-                    formatted_result = format_search_result(result)
-                    if formatted_result:
-                        formatted_results.append(formatted_result)
-                
-                # Join formatted results
-                if formatted_results:
-                    response_text = "\n\n".join(formatted_results)
-                else:
-                    response_text = "I found some information, but couldn't format it properly."
-            else:
-                response_text = "I'm sorry, I couldn't find relevant information for your query."
-        
-            # Store the bot response
+        # Check for project responses first (before search engine)
+        project_response = check_project_response(message_text)
+        if project_response:
+            logger.info(f"Found project response for query: {message_text}")
+            logger.debug(f"Project response type: {type(project_response)}, length: {len(str(project_response))}")
+            response_text = project_response
+        else:
+            # Extract keywords for search
             try:
-                ChatMessage.objects.create(
-                    session=session,
-                    sender='bot',
-                    message=response_text,
-                    timestamp=timezone.now()
-                )
-            except Exception as db_error:
-                logger.error(f"Database error when storing bot response: {str(db_error)}", exc_info=True)
-                # Continue anyway to return response to user
+                keywords = extract_keywords(message_text)
+                logger.debug(f"Extracted keywords: {keywords}")
+            except Exception as search_error:
+                logger.error(f"Error extracting keywords: {str(search_error)}", exc_info=True)
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Error analyzing message',
+                    'search_error': str(search_error)
+                }, status=500)
             
-            # Return response
-            return JsonResponse({
-                'status': 'success',
-                'response': response_text,
-                'sender_id': session.session_id
-            })
-        except Exception as format_error:
-            logger.error(f"Error formatting search results: {str(format_error)}", exc_info=True)
-            return JsonResponse({
-                'status': 'error', 
-                'message': 'Error formatting search results',
-                'detail': str(format_error)
-            }, status=500)
+            # Perform search with extracted keywords
+            try:
+                # Instead of passing keywords directly, pass the original message text
+                # to avoid list strip() issue in perform_search
+                search_results = perform_search(message_text, limit=3)
+                logger.debug(f"Search results: {search_results}")
+            except Exception as search_error:
+                logger.error(f"Error in search engine: {str(search_error)}", exc_info=True)
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Error searching database',
+                    'search_error': str(search_error)
+                }, status=500)
+            
+            # Prepare response based on search results
+            try:
+                # Format search results - perform_search now returns a list of dictionaries
+                if search_results and isinstance(search_results, list):
+                    # Format search result
+                    formatted_results = []
+                    for result in search_results:
+                        formatted_result = format_search_result(result)
+                        if formatted_result:
+                            formatted_results.append(formatted_result)
+                    
+                    # Join formatted results
+                    if formatted_results:
+                        response_text = "\n\n".join(formatted_results)
+                    else:
+                        response_text = "I found some information, but couldn't format it properly."
+                else:
+                    response_text = "I'm sorry, I couldn't find relevant information for your query."
+            except Exception as format_error:
+                logger.error(f"Error formatting search results: {str(format_error)}", exc_info=True)
+                response_text = "I found some information, but couldn't format it properly."
+        
+        # Store the bot response
+        try:
+            # Safety check to ensure response_text is set
+            if not response_text:
+                response_text = "I apologize, but I encountered an issue generating a response. Please try again."
+                logger.warning("response_text was empty, using fallback message")
+            
+            ChatMessage.objects.create(
+                session=session,
+                sender='bot',
+                message=response_text,
+                timestamp=timezone.now()
+            )
+        except Exception as db_error:
+            logger.error(f"Database error when storing bot response: {str(db_error)}", exc_info=True)
+            # Continue anyway to return response to user
+        
+        # Return response
+        return JsonResponse({
+            'status': 'success',
+            'response': response_text,
+            'sender_id': session.session_id
+        })
         
     except Exception as e:
         logger.error(f"Error in general message API: {str(e)}")

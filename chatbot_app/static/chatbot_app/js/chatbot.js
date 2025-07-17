@@ -138,6 +138,47 @@ function scrollChatToBottom() {
     }
 }
 
+// Function for typewriter effect
+function typewriterEffect(element, htmlString, onComplete) {
+    let i = 0;
+    const speed = 10; // Typing speed in milliseconds. Lower is faster.
+
+    element.innerHTML = ""; // Clear the element first
+
+    function type() {
+        if (i < htmlString.length) {
+            // If we encounter a '<', it might be an HTML tag
+            if (htmlString[i] === '<') {
+                const tagEndIndex = htmlString.indexOf('>', i);
+                if (tagEndIndex !== -1) {
+                    // It's a tag, so append the whole tag at once
+                    const tag = htmlString.substring(i, tagEndIndex + 1);
+                    element.innerHTML += tag;
+                    i = tagEndIndex; // Move index past the tag
+                } else {
+                    // It's a stray '<', just append it
+                    element.innerHTML += htmlString[i];
+                }
+            } else {
+                // It's a normal character, append it
+                element.innerHTML += htmlString[i];
+            }
+            
+            i++;
+            scrollChatToBottom(); // Keep scrolling as text is added
+            setTimeout(type, speed);
+        } else {
+            // Typing finished
+            if (onComplete) {
+                onComplete();
+            }
+        }
+    }
+
+    type();
+}
+
+
 // Core Functions
 function addMessage(messageObject, isLoadingHistory = false) {
     if (!chatBox) {
@@ -179,12 +220,19 @@ function addMessage(messageObject, isLoadingHistory = false) {
         const pathRegex = /(\/[a-zA-Z0-9\/_-]+)/g;
         formattedMessage = formattedMessage.replace(pathRegex, '<a href="$1" target="_blank">$1</a>');
         
-        // Add the text
-        messageText.innerHTML = ' ' + formattedMessage; // Space after prefix
         messageDiv.appendChild(messageText);
 
-         // Initialize interactive elements in formatted responses if any are added by the backend
-         initializeFormattedResponse(messageDiv);
+        if (isLoadingHistory) {
+             // If loading from history, just set the text directly without typewriter
+             messageText.innerHTML = ' ' + formattedMessage;
+             initializeFormattedResponse(messageDiv);
+        } else {
+            // Otherwise, use the typewriter effect for new messages
+            typewriterEffect(messageText, ' ' + formattedMessage, () => {
+                initializeFormattedResponse(messageDiv);
+                scrollChatToBottom(); // Ensure it's scrolled to the end after typing
+            });
+        }
 
     } else if (isIndicator) {
         messageDiv.id = 'typing-indicator';
@@ -202,7 +250,10 @@ function addMessage(messageObject, isLoadingHistory = false) {
     // Adjust scroll behavior based on the message type
     if (isBot) {
         // For bot messages, scroll to show the start of the message
-        scrollToMessageStart(messageDiv);
+        // This will be handled by the typewriter now
+        if (isLoadingHistory) {
+            scrollToMessageStart(messageDiv);
+        }
     } else {
         // For user messages and typing indicators, scroll to bottom
         scrollChatToBottom();

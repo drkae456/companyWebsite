@@ -428,6 +428,13 @@ def perform_search(prompt: str, limit: int = 5) -> list[Any]:
                     
                     results = list(alternate_model.objects.filter(alt_q_objects).distinct()[:limit])
             
+            # If still no results found but model was correctly identified,
+            # return first 3 records from the model as fallback
+            if not results:
+                logger.info(f"No content matches found for model {model.__name__}, returning first 3 records as fallback")
+                results = list(model.objects.all()[:3])
+                logger.debug(f"Fallback: Found {len(results)} records from {model.__name__}")
+            
             # Format results with relevant fields
             formatted_results = []
             for result in results:
