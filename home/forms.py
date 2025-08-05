@@ -357,9 +357,9 @@ class projects_JoinUsForm(forms.ModelForm):
         fields = ['name', 'email', 'message','page_name']
     
 class Upskilling_JoinProjectForm(forms.ModelForm):
-    p1 = forms.ModelChoiceField(queryset=Project.objects.all(), required=True)
-    p2 = forms.ModelChoiceField(queryset=Project.objects.all(), required=True)
-    p3 = forms.ModelChoiceField(queryset=Project.objects.all(), required=True)
+    p1 = forms.ModelChoiceField(queryset=Project.objects.filter(archived=False), required=True)
+    p2 = forms.ModelChoiceField(queryset=Project.objects.filter(archived=False), required=True)
+    p3 = forms.ModelChoiceField(queryset=Project.objects.filter(archived=False), required=True)
 
     class Meta:
         model = Student

@@ -687,6 +687,83 @@ class UserLoginView(LoginView):
 
         return super().form_invalid(form)
 
+    def get_client_ip(self, request):
+        # Using x_forwarded_for allows for proxy bypass to give the true IP of a user
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
+
+class AdminLoginView(LoginView):
+    """Specialised login view for admin users via /accounts/admin"""
+    template_name = 'accounts/sign-in.html'
+    form_class = UserLoginForm
+
+    def form_valid(self, form):
+        user = form.get_user()
+
+        # Check if user has admin privileges (staff or superuser - treated the same)
+        if not user.is_admin_user():
+            messages.error(self.request, 'Access denied. Admin privileges required.')
+            return redirect('login')
+
+        # Force new session to rotate session key (prevents fixation)
+        self.request.session.flush()
+
+        # Successful login, proceed as normal
+        response = super().form_valid(form)
+
+        # Enhanced admin session tracking
+        request = self.request
+        client_ip = self.get_client_ip(request)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+
+        # Store regular session info for hijack protection
+        request.session['ip_address'] = client_ip
+        request.session['user_agent'] = user_agent
+        request.session['session_token'] = request.session.session_key
+
+        # Mark this as an admin session
+        request.session['is_admin_session'] = True
+        request.session['admin_login_time'] = timezone.now().isoformat()
+
+        # Create AdminSession record for tracking
+        from .models import AdminSession
+
+        # End any existing active admin sessions for this user
+        AdminSession.objects.filter(user=user, is_active=True).update(
+            is_active=False, 
+            logout_time=timezone.now(),
+            logout_reason='new_session'
+        )
+
+        # Create new admin session record
+        admin_session = AdminSession.objects.create(
+            user=user,
+            session_key=request.session.session_key,
+            ip_address=client_ip,
+            user_agent=user_agent
+        )
+
+        # Store admin session ID in session for tracking
+        request.session['admin_session_id'] = admin_session.id
+
+        # Log admin login
+        import logging
+        logger = logging.getLogger('audit_logger')
+        logger.info(f"Admin login: {user.email} from IP {client_ip}")
+
+        messages.success(request, f'Welcome back, {user.get_full_name()}! Admin session started.')
+
+        return response
+
+    def get_client_ip(self, request):
+        # Using x_forwarded_for allows for proxy bypass to give the true IP of a user
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            return x_forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR')
+
 def rate_limit_exceeded(request):
     remaining_time = 60  # Use the helper function
 
@@ -1135,6 +1212,27 @@ def package_plan(request):
  
 # Chart Views
  
+@staff_member_required  
+def admin_dashboard(request):
+    """
+    Admin dashboard view with session management.
+    """
+    # Verify user has admin privileges
+    if not request.user.is_admin_user():
+        messages.error(request, 'Access denied. Admin privileges required.')
+        return redirect('login')
+    
+    # Check if this is a valid admin session
+    is_admin_session = request.session.get('is_admin_session', False)
+    if not is_admin_session:
+        messages.warning(request, 'Please log in through the admin portal.')
+        return redirect('admin_login')
+    
+    return render(request, 'admin/dashboard.html', {
+        'user': request.user,
+        'admin_session_active': True
+    })
+
 @staff_member_required
 def get_filter_options(request):
     return JsonResponse({
@@ -1774,7 +1872,35 @@ def delete_feedback(request, id):
 
 def challenge_list(request):
     categories = CyberChallenge.objects.values('category').annotate(count=Count('id')).order_by('category')
-    return render(request, 'pages/challenges/challenge_list.html', {'categories': categories})
+    
+    # Check if user is staff or superuser
+    show_admin_controls = request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+    
+    return render(request, 'pages/challenges/challenge_list.html', {
+        'categories': categories,
+        'min_controls': show_admin_controls
+    })
+def challenge_list(request):
+    categories = CyberChallenge.objects.values('category').annotate(count=Count('id')).order_by('category')
+    
+    # Check if user is staff or superuser
+    show_admin_controls = request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+
+    return render(request, 'pages/challenges/challenge_list.html', {
+        'categories': categories,
+        'show_admin_controls': show_admin_controls
+    })
+
+def cyber_challenge(request):
+    """
+    View for the cyber challenge page with admin controls.
+    """
+    # Check if user is staff or superuser
+    show_admin_controls = request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+
+    return render(request, 'cyber_challenge.html', {
+        'show_admin_controls': show_admin_controls
+    })
 
 
 
@@ -2163,4 +2289,3 @@ def arpaname_view(request):
 
 def policy_deployment(request):
     return render(request, 'pages/policy_deployment.html')
-

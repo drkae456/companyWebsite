@@ -158,6 +158,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.last_activity = now()
         self.current_session_key = request.session.session_key
         self.save(update_fields=['last_activity', 'current_session_key'])
+    
+    def is_admin_user(self):
+        """
+        Check if user has admin privileges (staff or superuser treated identically)
+        """
+        return self.is_staff or self.is_superuser
 
 #Search Bar Models:
 
@@ -172,21 +178,13 @@ class Webpage(models.Model):
 
 class Project(AbstractBaseSet):
 
-    PROJECT_CHOICES = [
-        ('AppAttack', 'AppAttack'),
-        ('Malware', 'Malware'),
-        ('PT-GUI', 'PT-GUI'),
-        ('Smishing_Detection', 'Smishing Detection'),
-        ('Deakin_CyberSafe_VR', 'Deakin CyberSafe VR'),
-        ('Deakin_Threat_Mirror', 'Deakin Threat Mirror'),
-        ('Company_Website_Development', 'Company Website Development'),
-    ]
-
     id = models.UUIDField(default=uuid.uuid4, primary_key=True, unique=True)
-    title = models.CharField(_("project title"), max_length=150, choices=PROJECT_CHOICES, blank=False)
+    title = models.CharField(_("project title"), max_length=150, blank=False)
+    description = models.TextField(_("project description"), blank=True, null=True)
+    archived = models.BooleanField(_("archived"), default=False)
 
     def __str__(self) -> str:
-        return self.get_title_display()
+        return self.title
 
 
 class Course(AbstractBaseSet):
@@ -370,6 +368,8 @@ class Profile(models.Model):
     github = models.URLField(max_length=200, blank=True, null=True)
     # phone = models.CharField(max_length=20, blank=True, null=True)
     location = models.CharField(max_length=100, blank=True, null=True)
+    assigned_project = models.ForeignKey(Project, null=True, blank=True, on_delete=models.SET_NULL)
+    date_assigned = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.user.username
@@ -417,6 +417,9 @@ class CyberChallenge(models.Model):
     points = models.IntegerField(default=10)
     challenge_type = models.CharField(max_length=20, choices=[('mcq', 'Multiple Choice'), ('fix_code', 'Fix the Code')])
     time_limit = models.IntegerField(default=60)  
+    is_active = models.BooleanField(default=True)  # For archive functionality
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.title
@@ -595,6 +598,44 @@ class Passkey(models.Model):
     def generate_passkey():
         """Generate a new passkey"""
         return ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+
+class AdminSession(models.Model):
+    """Track admin sessions for staff and superuser (treated identically)"""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="admin_sessions")
+    session_key = models.CharField(max_length=40, unique=True)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    login_time = models.DateTimeField(auto_now_add=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    logout_time = models.DateTimeField(null=True, blank=True)
+    logout_reason = models.CharField(max_length=50, blank=True, null=True)  # timeout, manual, security
+    
+    class Meta:
+        ordering = ['-login_time']
+    
+    def __str__(self):
+        admin_type = "Superuser" if self.user.is_superuser else "Staff"
+        return f"{admin_type} session for {self.user.email} - {self.login_time}"
+    
+    def mark_logout(self, reason="manual"):
+        
+        self.is_active = False
+        self.logout_time = now()
+        self.logout_reason = reason
+        self.save()
+    
+    def is_expired(self, timeout_minutes=30):
+        
+        if not self.is_active:
+            return True
+        expiry_time = self.last_activity + timedelta(minutes=timeout_minutes)
+        return now() > expiry_time
+    
+    def update_activity(self):
+        
+        self.last_activity = now()
+        self.save(update_fields=['last_activity'])
 
 class AppAttackReport(models.Model):
     year = models.PositiveIntegerField()

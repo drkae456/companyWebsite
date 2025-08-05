@@ -24,7 +24,7 @@ services:
       start_period: 10s
 
   web:
-    container_name: django_app
+    container_name: django_app1
     build: .
     restart: always
     volumes:
@@ -61,7 +61,7 @@ services:
              gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 120 core.wsgi"
 
   nginx:
-    container_name: nginx
+    container_name: nginx1
     image: nginx:latest
     restart: always
     ports:

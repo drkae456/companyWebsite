@@ -80,11 +80,19 @@ SESSION_COOKIE_SAMESITE = 'Strict'          # Restrict cross-origin cookie shari
 CSRF_COOKIE_SECURE = not DEBUG              # Ensure CSRF cookie is sent over HTTPS
 CSRF_COOKIE_SAMESITE = 'Strict'             # Restrict CSRF cookie from cross-origin requests
 
-# ---------------- Idle Session Timeout Configuration ----------------
-# Automatically logs out users after 5 minutes of inactivity, resets on every user request
-SESSION_COOKIE_AGE = 300  # 5 minutes in seconds
-SESSION_SAVE_EVERY_REQUEST = True  # Reset the session timeout on each request
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Expire session when browser closes
+# ---------------- Session Configuration ----------------
+# Different settings for development vs production to improve dev experience
+if DEBUG:
+    # Development settings - longer sessions, don't expire on browser close
+    SESSION_COOKIE_AGE = 86400  # 24 hours in development
+    SESSION_EXPIRE_AT_BROWSER_CLOSE = False  # Don't expire when browser closes in dev
+    SESSION_SAVE_EVERY_REQUEST = False  # Don't reset timeout on every request in dev
+else:
+    # Production settings - shorter sessions for security
+    SESSION_COOKIE_AGE = 300  # 5 minutes in production
+    SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Expire session when browser closes
+    SESSION_SAVE_EVERY_REQUEST = True  # Reset the session timeout on each request
+
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB
 
 # Application definition
@@ -128,6 +136,8 @@ MIDDLEWARE = [
     "home.idle.LogoutMiddleware",  
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "home.ratelimit_middleware.GlobalLockoutMiddleware",
+    "home.admin_session_middleware.AdminSessionSecurityMiddleware",
+    "home.admin_session_middleware.AdminSessionMiddleware",
     'core.middleware.AutoLogoutMiddleware'
 ]
 
@@ -433,10 +443,5 @@ MEDIA_URL = '/media/'
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
 
-# ---------------- Idle Session Timeout Configuration ----------------
-# Automatically logs out users after 5 minutes of inactivity, resets on every user request
-SESSION_COOKIE_AGE = 300  # 5 minutes in seconds
-SESSION_SAVE_EVERY_REQUEST = True  # Reset the session timeout on each request
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Expire session when browser closes
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB
+
 

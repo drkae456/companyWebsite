@@ -178,17 +178,27 @@
           {% endif %}
 
           {% if user.is_authenticated %}
+            {% if user.is_staff or user.is_superuser %}
           <li class="nav-item dropdown">
             <a href="#" class="nav-link dropdown-toggle" id="adminDropdown" aria-expanded="false" data-bs-toggle="dropdown">
-              Admin Settings
+              Admin Dashboard
               <span class="fas fa-angle-down nav-link-arrow ms-1"></span>
             </a>
             <div class="dropdown-menu pt-2" aria-labelledby="adminDropdown">
               <ul class="list-style-none">
-                <a class="menu-link" href="{% url 'adminblogpage' %}">
+                <a class="menu-link" href="#">
+                  <li class="mb-2 menu ps-3 py-1">Admin Dashboard</li>
+                </a>
+                <a class="menu-link" href="#">
+                  <li class="mb-2 menu ps-3 py-1">Project Teams</li>
+                </a>
+                <a class="menu-link" href="#">
+                  <li class="mb-2 menu ps-3 py-1">Project Assignment</li>
+                </a>
+                <a class="menu-link" href="#">
                   <li class="mb-2 menu ps-3 py-1">Review Blogs</li>
                 </a>
-                <a class="menu-link" href="{% url 'reports' %}">
+                <a class="menu-link" href="#">
                   <li class="mb-2 menu ps-3 py-1">Reports</li>
                 </a>
               </ul>
@@ -196,6 +206,7 @@
           </li>
           
                  
+            {% endif %}
           {% endif %}
 
 
@@ -381,7 +392,12 @@
               <ul class="list-style-none">
                 <a class="menu-link" href="{% url 'login' %}">
                   <li class="mb-2 menu ps-3 py-1">
-                    Team Sign In
+                    Student Sign In
+                  </li>
+                </a>
+                <a class="menu-link" href="{% url 'admin_login' %}">
+                  <li class="mb-2 menu ps-3 py-1">
+                    Admin Sign In
                   </li>
                 </a>
                 <a class="menu-link" href="#">

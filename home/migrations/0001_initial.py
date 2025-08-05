@@ -348,6 +348,8 @@ class Migration(migrations.Migration):
                 ('linkedin', models.URLField(blank=True, null=True)),
                 ('github', models.URLField(blank=True, null=True)),
                 ('location', models.CharField(blank=True, max_length=100, null=True)),
+                ('assigned_project', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='home.project')),
+                ('date_assigned', models.DateTimeField(blank=True, null=True)),
                 ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
             ],
         ),
