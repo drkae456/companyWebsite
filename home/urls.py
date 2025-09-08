@@ -56,7 +56,10 @@ urlpatterns = [
 
      #path('smishing_detection/join_us', views.smishing_detection_join_us, name='smishingdetection_join_us'),
     path('upskilling/', UpskillingView.as_view(), name='upskilling'),
+    # Personal course management (must come before slug patterns)
+    path('upskilling/create-personal/', views.create_personal_course, name='create_personal_course'),
     path('upskilling/<slug:slug>/', UpskillingSkillView.as_view(), name='upskilling_skill'),
+    path('upskilling/start/<slug:slug>/', views.start_external_skill, name='start_external_skill'),
     path('update-progress/<int:progress_id>/', views.update_progress, name='update_progress'),
     path('join-us/', join_project, name='join_us'),
     path('success/', UpskillSuccessView, name='success'),
@@ -68,6 +71,22 @@ urlpatterns = [
     path('vr/skills/', views.cybersafe_vr_skills, name='cybersafe_vr_skills'),
     path('vr/join_us', views.vr_join_us, name='cybersafe_vr_join_us'),
     path('upskilling/complete/<slug:slug>/', MarkSkillCompletedView.as_view(), name='complete_skill'),
+    
+    # Staff upskilling course management
+    path('staff/upskilling/create/', views.create_upskilling_course, name='create_upskilling_course'),
+    path('staff/upskilling/edit/<int:course_id>/', views.edit_upskilling_course, name='edit_upskilling_course'),
+    path('staff/upskilling/delete/<int:course_id>/', views.delete_upskilling_course, name='delete_upskilling_course'),
+    
+    # Admin course approval
+    path('staff/course-approval/', views.course_approval_dashboard, name='course_approval'),
+    path('staff/course-approval/<int:course_id>/', views.approve_course, name='approve_course'),
+    
+    # Certificate management
+    path('upskilling/<slug:skill_slug>/upload-certificate/', views.upload_certificate, name='upload_certificate'),
+    path('certificate/download/<int:certificate_id>/', views.download_certificate, name='download_certificate'),
+    path('staff/certificate-verification/', views.certificate_verification_dashboard, name='certificate_verification'),
+    path('staff/certificate-verification/<int:certificate_id>/verify/', views.verify_certificate, name='verify_certificate'),
+    
     # path('contact-central/', views.Contact_central, name='contact-central'),
     path('accounts/password-reset/', views.UserPasswordResetView.as_view(), name='password_reset'),
     path('accounts/password-reset-confirm/<uidb64>/<token>/', views.UserPasswordResetConfirmView.as_view(), name='password_reset_confirm'),

@@ -204,12 +204,90 @@ class Course(AbstractBaseSet):
         return self.title
 
 class Skill(models.Model):
+    VISIBILITY_CHOICES = [
+        ('official', 'Official - Visible to all users'),
+        ('personal', 'Personal - Visible only to creator'),
+        ('pending', 'Pending approval to become official'),
+    ]
+    
     name = models.CharField(max_length=255)
     description = models.TextField()
     slug = models.SlugField(blank=True)
+    external_link = models.URLField(blank=True, null=True, help_text="External course URL")
+    difficulty = models.CharField(max_length=50, default='Beginner')
+    tags = models.JSONField(default=list, blank=True)
+    badge = models.ImageField(upload_to='skill_badges/', blank=True, null=True, help_text="Badge image for skill completion")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='official')
+    approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_skills')
+    approved_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.name
+    
+    def is_official(self):
+        return self.visibility == 'official'
+    
+    def is_personal(self):
+        return self.visibility == 'personal'
+    
+    def is_pending_approval(self):
+        return self.visibility == 'pending'
+
+
+class SkillCertificate(models.Model):
+    PROVIDER_CHOICES = [
+        ('linkedin', 'LinkedIn Learning'),
+        ('microsoft', 'Microsoft Learn'),
+        ('other', 'Other')
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending Verification'),
+        ('verified', 'Verified'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='certificates')
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='certificates')
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default='other')
+    certificate_file = models.FileField(upload_to='certificates/', help_text="Upload your certificate (PDF, PNG, JPG)")
+    certificate_url = models.URLField(blank=True, null=True, help_text="Link to verify certificate online")
+    certificate_id = models.CharField(max_length=255, blank=True, null=True, help_text="Certificate ID or credential ID")
+    
+    # Verification fields
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='verified_certificates')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, null=True)
+    
+    # Metadata
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'skill']  # One certificate per user per skill
+        ordering = ['-submitted_at']
+    
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.skill.name} ({self.get_status_display()})"
+    
+    def is_linkedin_certificate(self):
+        """Check if this appears to be a LinkedIn Learning certificate"""
+        if self.provider == 'linkedin':
+            return True
+        if self.certificate_url and 'linkedin.com/learning/certificates' in self.certificate_url:
+            return True
+        return False
+    
+    def is_microsoft_certificate(self):
+        """Check if this appears to be a Microsoft Learn certificate"""
+        if self.provider == 'microsoft':
+            return True
+        if self.certificate_url and ('docs.microsoft.com' in self.certificate_url or 'microsoft.com/learn' in self.certificate_url):
+            return True
+        return False
 
 class Student(AbstractBaseSet):
 

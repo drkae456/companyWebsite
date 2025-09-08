@@ -1,0 +1,127 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block content %}
+<main class="pt-6 px-3 mt-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="text-light">Course Approval Management</h1>
+    </div>
+
+    {% if pending_courses %}
+    <div class="row">
+        {% for skill in pending_courses %}
+        <div class="col-md-6 mb-4">
+            <div class="card bg-dark text-white shadow-sm border-warning border-1 rounded-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <h5 class="card-title text-warning">{{ skill.name }}</h5>
+                        <span class="badge bg-info">Pending Approval</span>
+                    </div>
+
+                    <p class="card-text">
+                        <strong>Created by:</strong> {{ skill.created_by.get_full_name|default:skill.created_by.email
+                        }}<br>
+                        <strong>Difficulty:</strong> {{ skill.difficulty }}<br>
+                        <strong>Tags:</strong>
+                        {% for tag in skill.tags %}
+                        <span class="badge bg-secondary">{{ tag }}</span>
+                        {% endfor %}
+                        <br>
+                        <strong>External Link:</strong>
+                        {% if skill.external_link %}
+                        <a href="{{ skill.external_link }}" target="_blank" class="text-info">{{
+                            skill.external_link|truncatechars:50 }}</a>
+                        {% else %}
+                        None
+                        {% endif %}
+                    </p>
+
+                    <p class="card-text">
+                        <strong>Description:</strong><br>
+                        {{ skill.description|default:"No description provided." }}
+                    </p>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-success btn-sm"
+                            onclick="approveCourse('{{ skill.id }}', '{{ skill.name|escapejs }}')">
+                            <i class="fas fa-check me-1"></i>Approve & Make Official
+                        </button>
+                        <button class="btn btn-danger btn-sm"
+                            onclick="rejectCourse('{{ skill.id }}', '{{ skill.name|escapejs }}')">
+                            <i class="fas fa-times me-1"></i>Reject & Keep Personal
+                        </button>
+                        <a href="{{ skill.external_link }}" target="_blank" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>View Course
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center p-5">
+        <div class="text-muted">
+            <i class="fas fa-clipboard-check" style="font-size: 3rem; opacity: 0.3;"></i>
+            <h4 class="mt-3">No Pending Course Approvals</h4>
+            <p>All personal courses are up to date!</p>
+        </div>
+    </div>
+    {% endif %}
+</main>
+
+<script>
+    function approveCourse(courseId, courseName) {
+        if (confirm(`Are you sure you want to approve "${courseName}" and make it an official HardHat course for all users?`)) {
+            fetch(`{% url "approve_course" course_id=0 %}`.replace('0', courseId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: 'approve' })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while approving the course');
+                });
+        }
+    }
+
+    function rejectCourse(courseId, courseName) {
+        if (confirm(`Are you sure you want to reject "${courseName}"? It will remain a personal course for the creator only.`)) {
+            fetch(`{% url "approve_course" course_id=0 %}`.replace('0', courseId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action: 'reject' })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while rejecting the course');
+                });
+        }
+    }
+</script>
+
+{% endblock %}

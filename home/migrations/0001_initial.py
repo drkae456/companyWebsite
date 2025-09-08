@@ -267,7 +267,37 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=255)),
                 ('description', models.TextField()),
                 ('slug', models.SlugField(blank=True)),
+                ('external_link', models.URLField(blank=True, help_text='External course URL', null=True)),
+                ('difficulty', models.CharField(default='Beginner', max_length=50)),
+                ('tags', models.JSONField(blank=True, default=list)),
+                ('badge', models.ImageField(blank=True, help_text='Badge image for skill completion', null=True, upload_to='skill_badges/')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+                ('visibility', models.CharField(choices=[('official', 'Official - Visible to all users'), ('personal', 'Personal - Visible only to creator'), ('pending', 'Pending approval to become official')], default='official', max_length=20)),
+                ('approved_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='approved_skills', to=settings.AUTH_USER_MODEL)),
+                ('approved_at', models.DateTimeField(blank=True, null=True)),
             ],
+        ),
+        migrations.CreateModel(
+            name='SkillCertificate',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('provider', models.CharField(choices=[('linkedin', 'LinkedIn Learning'), ('microsoft', 'Microsoft Learn'), ('other', 'Other')], default='other', max_length=20)),
+                ('certificate_file', models.FileField(help_text='Upload your certificate (PDF, PNG, JPG)', upload_to='certificates/')),
+                ('certificate_url', models.URLField(blank=True, help_text='Link to verify certificate online', null=True)),
+                ('certificate_id', models.CharField(blank=True, help_text='Certificate ID or credential ID', max_length=255, null=True)),
+                ('status', models.CharField(choices=[('pending', 'Pending Verification'), ('verified', 'Verified'), ('rejected', 'Rejected')], default='pending', max_length=20)),
+                ('verified_at', models.DateTimeField(blank=True, null=True)),
+                ('rejection_reason', models.TextField(blank=True, null=True)),
+                ('submitted_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('skill', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='certificates', to='home.skill')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='certificates', to=settings.AUTH_USER_MODEL)),
+                ('verified_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='verified_certificates', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'ordering': ['-submitted_at'],
+            },
         ),
         migrations.CreateModel(
             name='Smishingdetection_join_us',
@@ -444,6 +474,10 @@ class Migration(migrations.Migration):
         migrations.AlterUniqueTogether(
             name='progress',
             unique_together={('student', 'skill')},
+        ),
+        migrations.AlterUniqueTogether(
+            name='skillcertificate',
+            unique_together={('user', 'skill')},
         ),
         migrations.CreateModel(
             name='CareerFAQ',

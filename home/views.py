@@ -1,19 +1,20 @@
 # from django.shortcuts import render, get_object_or_404
  
-# views.py
- 
+# views.py 
+import os
+
 from venv import logger
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from textblob import TextBlob
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from .forms import ExperienceForm
 from .models import Experience
-from django.db.models import Avg, Count
+from django.db.models import Avg, Count, Q
 
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -28,11 +29,13 @@ from django.views import View
 from django.views.generic import ListView, DetailView, CreateView
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods
 from .models import ContactSubmission
 from django.utils.html import strip_tags
+from django.utils.text import slugify
 from .models import Report
 
-from .models import Article, Student, Project, Contact, Smishingdetection_join_us, Projects_join_us, Webpage, Profile, User, Course, Skill, Experience, Job, JobAlert, UserBlogPage #Feedback 
+from .models import Article, Student, Project, Contact, Smishingdetection_join_us, Projects_join_us, Webpage, Profile, User, Course, Skill, Experience, Job, JobAlert, UserBlogPage, SkillCertificate #Feedback 
 
 
 from django.contrib.auth import get_user_model
@@ -1545,27 +1548,76 @@ def dashboard(request):
     user = request.user
     student = Student.objects.filter(user=user).first()
 
-    skills = [
-        {'title': 'Docker Basics', 'slug': 'docker-basics'},
-        {'title': 'HTML & Tailwind Styling', 'slug': 'html-tailwind'},
-        {'title': 'Git & GitHub Workflows', 'slug': 'git-github-workflows'},
-        {'title': 'Django', 'slug': 'django'},
-        {'title': 'Secure Code Review', 'slug': 'secure-code-review'},
-    ]
-
+    # Get skills from database
+    skills_from_db = Skill.objects.all().order_by('created_at')
     progress_data = user.upskilling_progress or {}
 
+    skills = []
     completed = in_progress = not_started = 0
 
-    for skill in skills:
-        status = progress_data.get(skill['slug'], 'Not Started')
-        skill['status'] = status
+    completed_skills = []  # Store completed skills with badges
+    
+    for skill in skills_from_db:
+        # Check if user has a certificate for this skill
+        certificate = SkillCertificate.objects.filter(user=user, skill=skill).first()
+        
+        # If certificate is verified, override status to completed
+        if certificate and certificate.status == 'verified':
+            progress_data[skill.slug] = 'Completed'
+        
+        status = progress_data.get(skill.slug, 'Not Started')
+        skill_data = {
+            'title': skill.name,
+            'slug': skill.slug,
+            'status': status,
+            'badge': skill.badge
+        }
+        skills.append(skill_data)
+        
+        # If skill is completed, add to completed_skills list
+        if status == 'Completed':
+            completed_skills.append({
+                'title': skill.name,
+                'badge': skill.badge,
+                'certificate': certificate
+            })
+        
         if status == 'Completed':
             completed += 1
         elif status == 'In Progress':
             in_progress += 1
         else:
             not_started += 1
+
+    # If no skills in database, add some default ones
+    if not skills:
+        default_skills = [
+            {'title': 'Docker Basics', 'slug': 'docker-basics'},
+            {'title': 'HTML & Tailwind Styling', 'slug': 'html-tailwind'},
+            {'title': 'Git & GitHub Workflows', 'slug': 'git-github-workflows'},
+            {'title': 'Django', 'slug': 'django'},
+            {'title': 'Secure Code Review', 'slug': 'secure-code-review'},
+        ]
+        
+        for skill in default_skills:
+            status = progress_data.get(skill['slug'], 'Not Started')
+            skill['status'] = status
+            skill['badge'] = None  # Default skills have no badges
+            
+            # Add to completed_skills if completed
+            if status == 'Completed':
+                completed_skills.append({
+                    'title': skill['title'],
+                    'badge': None,
+                    'certificate': None  # Default skills don't have certificates
+                })
+                completed += 1
+            elif status == 'In Progress':
+                in_progress += 1
+            else:
+                not_started += 1
+        
+        skills = default_skills
 
     total = len(skills)
     percent = round((completed / total) * 100) if total > 0 else 0
@@ -1574,6 +1626,7 @@ def dashboard(request):
         'user': user,
         'student': student,
         'skills': skills,
+        'completed_skills': completed_skills,
         'completed_count': completed,
         'in_progress_count': in_progress,
         'not_started_count': not_started,
@@ -1736,45 +1789,78 @@ class UpskillingView(LoginRequiredMixin, ListView):
         # Retrieve the user's saved upskilling progress from the database
         progress_data = self.request.user.upskilling_progress or {}
 
-        # Define the list of skills
-        context['skills'] = [
-            {
-                'title': 'Docker Basics',
-                'slug': 'docker-basics',
-                'difficulty': 'Beginner',
-                'tags': ['DevOps', 'Containers'],
-                'status': progress_data.get('docker-basics', 'Not Started')
-            },
-            {
-                'title': 'HTML & Tailwind Styling',
-                'slug': 'html-tailwind',
-                'difficulty': 'Beginner',
-                'tags': ['Frontend', 'UI', 'CSS'],
-                'status': progress_data.get('html-tailwind', 'Not Started')
-            },
-            {
-                'title': 'Git & GitHub Workflows',
-                'slug': 'git-github-workflows',
-                'difficulty': 'Intermediate',
-                'tags': ['Collaboration', 'Version Control'],
-                'status': progress_data.get('git-github-workflows', 'Not Started')
-            },
-            {
-                'title': 'Django',
-                'slug': 'django',
-                'difficulty': 'Intermediate',
-                'tags': ['Python', 'Web Dev'],
-                'status': progress_data.get('django', 'Not Started')
-            },
-            {
-                'title': 'Secure Code Review',
-                'slug': 'secure-code-review',
-                'difficulty': 'Advanced',
-                'tags': ['Security', 'Code Quality'],
-                'status': progress_data.get('secure-code-review', 'Not Started')
-            }
-        ]
+        # Get skills from database - official skills + user's personal skills
+        if self.request.user.is_staff:
+            # Staff can see all skills
+            skills_from_db = Skill.objects.all().order_by('created_at')
+        else:
+            # Regular users see official skills + their own personal skills
+            skills_from_db = Skill.objects.filter(
+                Q(visibility='official') | 
+                Q(visibility='personal', created_by=self.request.user) |
+                Q(visibility='pending', created_by=self.request.user)
+            ).order_by('created_at')
+        
+        # Format skills for template
+        skills = []
+        for skill in skills_from_db:
+            # Check if user has a certificate for this skill
+            certificate = SkillCertificate.objects.filter(user=self.request.user, skill=skill).first()
+            certificate_status = None
+            if certificate:
+                certificate_status = certificate.status
+                # If certificate is verified, override status to completed
+                if certificate.status == 'verified':
+                    progress_data[skill.slug] = 'Completed'
+            
+            skills.append({
+                'id': skill.id,
+                'title': skill.name,
+                'slug': skill.slug,
+                'difficulty': skill.difficulty,
+                'tags': skill.tags if skill.tags else [],
+                'status': progress_data.get(skill.slug, 'Not Started'),
+                'external_link': skill.external_link,
+                'description': skill.description,
+                'certificate_status': certificate_status,
+                'badge': skill.badge,
+                'visibility': skill.visibility
+            })
+        
+        # If no skills in database, add some default ones
+        if not skills:
+            default_skills = [
+                {
+                    'title': 'Docker Basics',
+                    'slug': 'docker-basics',
+                    'difficulty': 'Beginner',
+                    'tags': ['DevOps', 'Containers'],
+                    'status': progress_data.get('docker-basics', 'Not Started'),
+                    'external_link': 'https://docs.docker.com/get-started/',
+                    'description': 'Learn the fundamentals of Docker containerisation'
+                },
+                {
+                    'title': 'HTML and Tailwind Styling',
+                    'slug': 'html-tailwind',
+                    'difficulty': 'Beginner',
+                    'tags': ['Frontend', 'UI', 'CSS'],
+                    'status': progress_data.get('html-tailwind', 'Not Started'),
+                    'external_link': 'https://tailwindcss.com/docs',
+                    'description': 'Master HTML markup and Tailwind CSS framework'
+                },
+                {
+                    'title': 'Git and GitHub Workflows',
+                    'slug': 'git-github-workflows',
+                    'difficulty': 'Intermediate',
+                    'tags': ['Collaboration', 'Version Control'],
+                    'status': progress_data.get('git-github-workflows', 'Not Started'),
+                    'external_link': 'https://docs.github.com/en/actions/learn-github-actions',
+                    'description': 'Learn version control and GitHub workflows'
+                }
+            ]
+            skills = default_skills
 
+        context['skills'] = skills
         return context
 
     def get_queryset(self):
@@ -1829,14 +1915,14 @@ class UpskillingSkillView(LoginRequiredMixin, DetailView):
                 'status': 'Not Started'
             },
             {
-                'title': 'HTML & Tailwind Styling',
+                'title': 'HTML and Tailwind Styling',
                 'slug': 'html-tailwind',
                 'difficulty': 'Beginner',
                 'tags': ['Frontend', 'UI', 'CSS'],
                 'status': 'Not Started'
             },
             {
-                'title': 'Git & GitHub Workflows',
+                'title': 'Git and GitHub Workflows',
                 'slug': 'git-github-workflows',
                 'difficulty': 'Intermediate',
                 'tags': ['Collaboration', 'Version Control'],
@@ -3275,3 +3361,476 @@ def get_available_users(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# Admin Upskilling Course Management Views
+@require_http_methods(["POST"])
+@user_passes_test(lambda u: u.is_staff)
+def create_upskilling_course(request):
+    """Admin view to create a new upskilling course"""
+    try:
+        # Handle form data (for file uploads)
+        if request.content_type.startswith('multipart/form-data'):
+            title = request.POST.get('title', '').strip()
+            description = request.POST.get('description', '')
+            external_link = request.POST.get('external_link', '')
+            difficulty = request.POST.get('difficulty', 'Beginner')
+            tags = json.loads(request.POST.get('tags', '[]'))
+            badge_file = request.FILES.get('badge')
+        else:
+            # Handle JSON data (legacy support)
+            data = json.loads(request.body)
+            title = data.get('title', '').strip()
+            description = data.get('description', '')
+            external_link = data.get('external_link', '')
+            difficulty = data.get('difficulty', 'Beginner')
+            tags = data.get('tags', [])
+            badge_file = None
+        
+        if not title:
+            return JsonResponse({'success': False, 'error': 'Title is required'}, status=400)
+            
+        # Create a clean slug - replace & with 'and', remove special characters
+        clean_title = title.replace('&', 'and').replace(' & ', ' and ')
+        slug = slugify(clean_title)
+        
+        # Check if skill with this slug already exists
+        if Skill.objects.filter(slug=slug).exists():
+            return JsonResponse({'success': False, 'error': 'A course with this title already exists'}, status=400)
+        
+        # Create the skill
+        skill = Skill.objects.create(
+            name=title,
+            description=description,
+            slug=slug,
+            external_link=external_link,
+            difficulty=difficulty,
+            tags=tags,
+            badge=badge_file,
+            created_by=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Course "{skill.name}" created successfully!',
+            'skill': {
+                'id': skill.id,
+                'title': skill.name,
+                'slug': skill.slug,
+                'difficulty': skill.difficulty,
+                'tags': skill.tags,
+                'external_link': skill.external_link,
+                'badge_url': skill.badge.url if skill.badge else None
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@user_passes_test(lambda u: u.is_staff)
+def delete_upskilling_course(request, course_id):
+    """Admin view to delete an upskilling course"""
+    try:
+        skill = get_object_or_404(Skill, id=course_id)
+        course_name = skill.name
+        skill.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Course "{course_name}" deleted successfully!'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@login_required
+def create_personal_course(request):
+    """Allow users to create their own personal courses"""
+    try:
+        # Handle form data
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '')
+        external_link = request.POST.get('external_link', '')
+        difficulty = request.POST.get('difficulty', 'Beginner')
+        tags = json.loads(request.POST.get('tags', '[]'))
+        
+        if not title:
+            return JsonResponse({'success': False, 'error': 'Title is required'}, status=400)
+            
+        # Create a clean slug - replace & with 'and', remove special characters
+        clean_title = title.replace('&', 'and').replace(' & ', ' and ')
+        slug = slugify(clean_title)
+        
+        # Check if user already has a skill with this slug
+        if Skill.objects.filter(slug=slug, created_by=request.user).exists():
+            return JsonResponse({'success': False, 'error': 'You already have a course with this title'}, status=400)
+        
+        # Create the personal skill
+        skill = Skill.objects.create(
+            name=title,
+            description=description,
+            slug=slug,
+            external_link=external_link,
+            difficulty=difficulty,
+            tags=tags,
+            visibility='personal',
+            created_by=request.user
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Personal course "{skill.name}" created successfully!',
+            'skill': {
+                'id': skill.id,
+                'title': skill.name,
+                'slug': skill.slug,
+                'difficulty': skill.difficulty,
+                'tags': skill.tags,
+                'external_link': skill.external_link,
+                'visibility': skill.visibility
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# Certificate Management Views
+@login_required
+@require_http_methods(["POST"])
+def upload_certificate(request, skill_slug):
+    """Allow users to upload certificates for skill completion"""
+    try:
+        skill = get_object_or_404(Skill, slug=skill_slug)
+        
+        # Check if user already has a certificate for this skill
+        existing_cert = SkillCertificate.objects.filter(user=request.user, skill=skill).first()
+        if existing_cert:
+            return JsonResponse({
+                'success': False, 
+                'error': f'You already have a certificate submitted for this skill (Status: {existing_cert.get_status_display()})'
+            }, status=400)
+        
+        # Get form data
+        provider = request.POST.get('provider', 'other')
+        certificate_url = request.POST.get('certificate_url', '')
+        certificate_id = request.POST.get('certificate_id', '')
+        certificate_file = request.FILES.get('certificate_file')
+        request_official = request.POST.get('request_official') == 'on'
+        
+        if not certificate_file:
+            return JsonResponse({'success': False, 'error': 'Certificate file is required'}, status=400)
+        
+        # Validate file type
+        allowed_extensions = ['.pdf', '.png', '.jpg', '.jpeg']
+        file_extension = os.path.splitext(certificate_file.name)[1].lower()
+        if file_extension not in allowed_extensions:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Invalid file type. Please upload PDF, PNG, or JPG files only.'
+            }, status=400)
+        
+        # Create certificate record
+        certificate = SkillCertificate.objects.create(
+            user=request.user,
+            skill=skill,
+            provider=provider,
+            certificate_file=certificate_file,
+            certificate_url=certificate_url,
+            certificate_id=certificate_id
+        )
+        
+        # If user requested to make personal course official, update skill visibility
+        if request_official and skill.visibility == 'personal' and skill.created_by == request.user:
+            skill.visibility = 'pending'
+            skill.save()
+            message_addon = " Your course has been submitted for approval to become an official HardHat course."
+        else:
+            message_addon = ""
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Certificate uploaded successfully! It will be reviewed by our staff.{message_addon}',
+            'certificate_id': certificate.id
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def download_certificate(request, certificate_id):
+    """Allow users to download their own certificates"""
+    try:
+        certificate = get_object_or_404(SkillCertificate, id=certificate_id, user=request.user, status='verified')
+        
+        if not certificate.certificate_file:
+            return JsonResponse({'success': False, 'error': 'No certificate file found'}, status=404)
+        
+        # Create a response with the file
+        response = HttpResponse(
+            certificate.certificate_file.read(),
+            content_type='application/octet-stream'
+        )
+        
+        # Set the filename
+        filename = f"{certificate.skill.name}_certificate_{certificate.user.email.split('@')[0]}.{certificate.certificate_file.name.split('.')[-1]}"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@user_passes_test(lambda u: u.is_staff)
+def certificate_verification_dashboard(request):
+    """Admin dashboard for certificate verification"""
+    # Get filter parameters
+    status_filter = request.GET.get('status', 'pending')
+    provider_filter = request.GET.get('provider', '')
+    
+    # Build queryset
+    certificates = SkillCertificate.objects.select_related('user', 'skill', 'verified_by')
+    
+    if status_filter and status_filter != 'all':
+        certificates = certificates.filter(status=status_filter)
+    if provider_filter:
+        certificates = certificates.filter(provider=provider_filter)
+    
+    certificates = certificates.order_by('-submitted_at')
+    
+    # Get counts for dashboard stats
+    pending_count = SkillCertificate.objects.filter(status='pending').count()
+    verified_count = SkillCertificate.objects.filter(status='verified').count()
+    rejected_count = SkillCertificate.objects.filter(status='rejected').count()
+    
+    context = {
+        'certificates': certificates,
+        'status_filter': status_filter,
+        'provider_filter': provider_filter,
+        'pending_count': pending_count,
+        'verified_count': verified_count,
+        'rejected_count': rejected_count,
+        'provider_choices': SkillCertificate.PROVIDER_CHOICES,
+        'status_choices': SkillCertificate.STATUS_CHOICES,
+    }
+    
+    return render(request, 'admin/certificate-verification.html', context)
+
+
+@require_http_methods(["POST"])
+@user_passes_test(lambda u: u.is_staff)
+def verify_certificate(request, certificate_id):
+    """Admin view to verify or reject a certificate"""
+    try:
+        certificate = get_object_or_404(SkillCertificate, id=certificate_id)
+        data = json.loads(request.body)
+        
+        action = data.get('action')  # 'verify' or 'reject'
+        rejection_reason = data.get('rejection_reason', '')
+        
+        if action == 'verify':
+            certificate.status = 'verified'
+            certificate.verified_by = request.user
+            certificate.verified_at = timezone.now()
+            certificate.rejection_reason = None
+            
+            # Update user's skill progress to completed
+            if hasattr(certificate.user, 'upskilling_progress'):
+                progress_data = certificate.user.upskilling_progress or {}
+                progress_data[certificate.skill.slug] = 'Completed'
+                certificate.user.upskilling_progress = progress_data
+                certificate.user.save()
+            
+            message = f'Certificate for {certificate.skill.name} has been verified successfully!'
+            
+        elif action == 'reject':
+            if not rejection_reason:
+                return JsonResponse({'success': False, 'error': 'Rejection reason is required'}, status=400)
+            
+            certificate.status = 'rejected'
+            certificate.verified_by = request.user
+            certificate.verified_at = timezone.now()
+            certificate.rejection_reason = rejection_reason
+            
+            message = f'Certificate for {certificate.skill.name} has been rejected.'
+            
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+        
+        certificate.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'new_status': certificate.get_status_display()
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@require_http_methods(["POST"])
+@user_passes_test(lambda u: u.is_staff)
+def edit_upskilling_course(request, course_id):
+    """Admin view to edit an existing upskilling course"""
+    try:
+        course = get_object_or_404(Skill, id=course_id)
+        
+        # Handle form data (for file uploads)
+        if request.content_type.startswith('multipart/form-data'):
+            title = request.POST.get('title', '').strip()
+            description = request.POST.get('description', '')
+            external_link = request.POST.get('external_link', '')
+            difficulty = request.POST.get('difficulty', 'Beginner')
+            tags = json.loads(request.POST.get('tags', '[]'))
+            badge_file = request.FILES.get('badge')
+        else:
+            # Handle JSON data (legacy support)
+            data = json.loads(request.body)
+            title = data.get('title', '').strip()
+            description = data.get('description', '')
+            external_link = data.get('external_link', '')
+            difficulty = data.get('difficulty', 'Beginner')
+            tags = data.get('tags', [])
+            badge_file = None
+        
+        if not title:
+            return JsonResponse({'success': False, 'error': 'Title is required'}, status=400)
+        
+        # Generate clean slug from title
+        clean_title = title.replace('&', 'and').replace(' & ', ' and ')
+        new_slug = slugify(clean_title)
+        
+        # Check if another skill with this slug exists (excluding current one)
+        if Skill.objects.filter(slug=new_slug).exclude(id=course_id).exists():
+            return JsonResponse({'success': False, 'error': 'A course with this title already exists'}, status=400)
+        
+        # Update course fields
+        course.name = title
+        course.description = description
+        course.slug = new_slug
+        course.external_link = external_link
+        course.difficulty = difficulty
+        course.tags = tags
+        
+        # Update badge if a new one is provided
+        if badge_file:
+            course.badge = badge_file
+            
+        course.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Course "{course.name}" updated successfully!',
+            'course': {
+                'id': course.id,
+                'title': course.name,
+                'slug': course.slug,
+                'description': course.description,
+                'difficulty': course.difficulty,
+                'tags': course.tags,
+                'external_link': course.external_link,
+                'badge_url': course.badge.url if course.badge else None
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@user_passes_test(lambda u: u.is_staff)
+def course_approval_dashboard(request):
+    """Admin dashboard for approving pending courses"""
+    pending_courses = Skill.objects.filter(visibility='pending').order_by('-created_at')
+    
+    return render(request, 'admin/course-approval.html', {
+        'pending_courses': pending_courses
+    })
+
+
+@require_http_methods(["POST"])
+@user_passes_test(lambda u: u.is_staff)
+def approve_course(request, course_id):
+    """Admin view to approve or reject pending courses"""
+    try:
+        course = get_object_or_404(Skill, id=course_id, visibility='pending')
+        data = json.loads(request.body)
+        action = data.get('action')
+        
+        if action == 'approve':
+            course.visibility = 'official'
+            course.approved_by = request.user
+            course.approved_at = timezone.now()
+            course.save()
+            
+            message = f'Course "{course.name}" has been approved and is now available to all users!'
+            
+        elif action == 'reject':
+            course.visibility = 'personal'
+            course.save()
+            
+            message = f'Course "{course.name}" has been rejected and remains a personal course.'
+            
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid action'}, status=400)
+        
+        return JsonResponse({
+            'success': True,
+            'message': message
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def start_external_skill(request, slug):
+    skill = get_object_or_404(Skill, slug=slug)
+    if skill.external_link:
+        # Update user's upskilling progress JSON field
+        progress_data = request.user.upskilling_progress or {}
+        if progress_data.get(slug) != "Completed":
+            progress_data[slug] = "In Progress"
+            request.user.upskilling_progress = progress_data
+            request.user.save()
+        
+        try:
+            student = request.user.users
+            progress, created = Progress.objects.get_or_create(
+                student=student,
+                skill=skill,
+            )
+            if progress.progress == 0 and not progress.completed:
+                progress.progress = 10  # Mark as started
+                progress.save()
+        except Student.DoesNotExist:
+            # Handle case where user is not a student
+            pass
+        return redirect(skill.external_link)
+    return redirect('upskilling')
+
+
+def delete_account(request):
+    if request.method == 'POST':
+        user = request.user
+        user.delete()
+        logout(request)
+        messages.success(request, "Your account has been deleted.")
+        return redirect('login') 
+    return HttpResponseNotAllowed(['POST'])
