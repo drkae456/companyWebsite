@@ -68,35 +68,26 @@ SESSION_COOKIE_SECURE = False
 #Ensure v3 Google ReCAPTCHA keys are set
 #To set up new keys, navigate to https://www.google.com/recaptcha/admin/site/
 # Use credentials for Gmail hardhatwebsite@gmail.com
-RECAPTCHA_SITE_KEY = '6LfAVkYrAAAAADQTOddD3d6Ly-LWGDt-O5zpOkao'
-RECAPTCHA_SECRET_KEY = '6LfAVkYrAAAAAHmiKUs--9QR_U70BlGPU6yP522i'
- 
-# Prevents JavaScript from accessing session cookies when set True
-SESSION_COOKIE_HTTPONLY = False
- 
-#Mitigate CSRF attacks by restricting cross-origin cookie sharing when set Strict
-SESSION_COOKIE_SAMESITE = 'Lax'
+RECAPTCHA_SITE_KEY = '6LesBKsrAAAAADwwja7GKS33AEC7ktIuJlcYpBDf'
+RECAPTCHA_SECRET_KEY = '6LesBKsrAAAAANii1CrJeF_C679-5vRMgGNC6htZ'
 
-#Ensure CSRF cookies are sent over HTTPS only
-CSRF_COOKIE_SECURE = True
+# ---------------- Secure Session Cookie Settings ----------------
+# These settings ensure cookies are securely transmitted over HTTPS and protected from JS and CSRF attacks
+SESSION_COOKIE_SECURE = not DEBUG           # Only allow HTTPS cookies in production
+SESSION_COOKIE_HTTPONLY = True              # Prevent access to session cookies via JavaScript
+SESSION_COOKIE_SAMESITE = 'Strict'          # Restrict cross-origin cookie sharing
 
-#Enhance CSRF protection
-CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG              # Ensure CSRF cookie is sent over HTTPS
+CSRF_COOKIE_SAMESITE = 'Strict'             # Restrict CSRF cookie from cross-origin requests
 
-#Ensure DEBUG is set to False in production to avoid sensitive information exposure
-DEBUG = True
-
-
-#Limit request header sizes and body lenghts
-#Limit number of form fileds
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000 
-
-# Limit max upload memory size 10 MB
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  
-
+# ---------------- Idle Session Timeout Configuration ----------------
+# Automatically logs out users after 5 minutes of inactivity, resets on every user request
+SESSION_COOKIE_AGE = 300  # 5 minutes in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # Reset the session timeout on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Expire session when browser closes
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB
 
 # Application definition
-
 INSTALLED_APPS = [
     'crispy_forms',
     'tinymce',
@@ -116,7 +107,7 @@ INSTALLED_APPS = [
     'rest_framework',  
     'drf_yasg', 
 
-    'home',
+    'home.apps.HomeConfig',
     'theme_pixel',
 
     'corsheaders',
@@ -130,6 +121,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "core.middleware.LocaleMiddlewareDefaultEnglish",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -138,7 +130,9 @@ MIDDLEWARE = [
     "home.idle.LogoutMiddleware",  
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "home.ratelimit_middleware.GlobalLockoutMiddleware",
-    'core.middleware.AutoLogoutMiddleware'
+    "home.admin_session_middleware.AdminSessionMiddleware", #admin session middleware
+    'core.middleware.AutoLogoutMiddleware',
+
 ]
 
 LOGGING = {
@@ -249,21 +243,41 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
+    
+    # Prevent reusing last N passwords
+    {
+        "NAME": "home.validators.PasswordHistoryValidator",
+        "OPTIONS": {"keep_last": 2, "include_current": True},
+    },
 ]
 
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "en"
+LANGUAGE_COOKIE_AGE = 60 
 
 # TIME_ZONE = "UTC"
 TIME_ZONE = "Australia/Melbourne"
 
 USE_I18N = True
-
 USE_TZ = True
 
+LANGUAGES = [
+    ('en', 'English'),
+    ('zh-hans', 'Simplified Chinese'),
+    # ("hi", "हिन्दी (Hindi)"),  DeepL api can not translate Hindi.
+    ("fr", "Français"),
+    ("es", "Español"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+]
+
+
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
@@ -356,15 +370,11 @@ SECURE_HSTS_PRELOAD = True
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-SESSION_COOKIE_AGE = 1209600 #2 weeks 
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_SAVE_EVERY_REQUEST = True
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-
 #cron-job-feature
 # Django-cron configuration class
 CRON_CLASSES = [
     'home.tasks.CleanStaleRecordsCronJob', 
+    'home.tasks.ClearExpiredSessionsCronJob',
 ]
 
 LOGGING = {
@@ -442,4 +452,15 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 MEDIA_URL = '/media/'
+
+# Limit request header sizes and body lengths
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10 MB
+
+# ---------------- Idle Session Timeout Configuration ----------------
+# Automatically logs out users after 5 minutes of inactivity, resets on every user request
+SESSION_COOKIE_AGE = 300  # 5 minutes in seconds
+SESSION_SAVE_EVERY_REQUEST = True  # Reset the session timeout on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Expire session when browser closes
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Store sessions in DB
 
