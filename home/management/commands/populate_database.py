@@ -16,7 +16,7 @@ from faker import Faker
 
 # Import all your models
 from home.models import (
-    AdminNotification, APIModel, User, PasswordHistory,
+    AdminNotification, APIModel, User,
     Webpage, Project, Course, Skill, Student, Progress,
     Contact, DDT_contact, Article, Smishingdetection_join_us,
     Projects_join_us, Profile, CyberChallenge, UserChallenge,
