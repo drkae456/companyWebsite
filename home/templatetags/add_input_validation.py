@@ -24,3 +24,9 @@ def add_input_validation(field):
             }
         )
     return field
+
+
+@register.filter(name="get_item")
+def get_item(dictionary, key):
+    """Get item from dictionary using key"""
+    return dictionary.get(key)

@@ -79,21 +79,19 @@
             </a>
             <div class="dropdown-menu pt-2" aria-labelledby="adminDropdown">
               <ul class="list-style-none">
-                <a class="menu-link" href="{% url 'user_management' %}">
-                  <li class="mb-2 menu ps-3 py-1">{% trans "User Management" %}</li>
+                <!-- Always show Staff Dashboard -->
+                <a class="menu-link" href="{% url 'admin_dashboard' %}">
+                  <li class="mb-2 menu ps-3 py-1">{% trans "Staff Dashboard" %}</li>
                 </a>
-                <a class="menu-link" href="{% url 'project_teams' %}">
-                  <li class="mb-2 menu ps-3 py-1">{% trans "Project Teams" %}</li>
-                </a>
-                <a class="menu-link" href="{% url 'certificate_verification' %}">
-                  <li class="mb-2 menu ps-3 py-1">{% trans "Certificate Verification" %}</li>
-                </a>
-                <a class="menu-link" href="{% url 'adminblogpage' %}">
-                  <li class="mb-2 menu ps-3 py-1">{% trans "Review Blogs" %}</li>
-                </a>
-                <a class="menu-link" href="{% url 'reports' %}">
-                  <li class="mb-2 menu ps-3 py-1">{% trans "Reports" %}</li>
-                </a>
+                
+                <!-- Show pinned navigation links -->
+                {% for nav_link in pinned_nav_links %}
+                  <a class="menu-link" href="{% url nav_link.url_name %}">
+                    <li class="mb-2 menu ps-3 py-1">
+                      <i class="{{ nav_link.icon }} me-2"></i>{% trans nav_link.title %}
+                    </li>
+                  </a>
+                {% endfor %}
               </ul>
             </div>
           </li>

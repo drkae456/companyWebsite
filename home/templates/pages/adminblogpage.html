@@ -6,6 +6,15 @@
 <section class="section section-lg">
   <div class="container">
     <h4>Admin - Manage Blogs</h4>
+    
+    {% if is_project_restricted %}
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      <strong>Project-Based View:</strong> You are viewing blog approvals for users in your assigned project(s): 
+      {% for project in accessible_projects %}{{ project.title }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+    
     <br>
 
     <div class="row">

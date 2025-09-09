@@ -340,7 +340,7 @@ class Student(AbstractBaseSet):
         },
     )
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="users", blank=False, null=False)
-    year = models.PositiveIntegerField(blank=True)
+    year = models.PositiveIntegerField(blank=True, null=True)
     trimester = models.CharField(_("trimester"), choices=TRIMESTERS, max_length=10, blank=True)
     unit = models.CharField(_("unit"), choices=UNITS, max_length=50, blank=True)
     course = models.CharField(max_length=10, choices=COURSES, blank=True, null=True)
@@ -517,6 +517,167 @@ class UserChallenge(models.Model):
         return f"{self.user.username} - {self.challenge.title}"
 
 
+class Quiz(models.Model):
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    ]
+    
+    # Use the same category choices as CyberChallenge for consistency
+    CATEGORY_CHOICES = [
+        ('network', 'Network Security'),
+        ('web', 'Web Application Security'),
+        ('crypto', 'Cryptography'),
+        ('general', 'General Knowledge'),
+        ('python', 'Python'),
+        ('javascript', 'JavaScript'),
+        ('html_css', 'HTML & CSS'),
+        ('web_security', 'Web Security'),
+        ('reverse_engineering', 'Reverse Engineering'),
+        ('forensics', 'Forensics'),
+        ('binary_exploitation', 'Binary Exploitation'),
+        ('linux', 'Linux'),
+        ('algorithms', 'Algorithms'),
+        ('data_structures', 'Data Structures'),
+        ('databases', 'Databases'),
+        ('regex', 'Regex'),
+        ('secure_coding', 'Secure Coding'),
+        ('logic_reasoning', 'Logic & Reasoning'),
+        ('misc', 'Miscellaneous'),
+    ]
+    
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, help_text="Category for leaderboard grouping - matches cyber challenge categories")
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES)
+    time_limit = models.IntegerField(default=30, help_text="Time limit in minutes")
+    is_active = models.BooleanField(default=True)
+    randomize_questions = models.BooleanField(default=False)
+    passing_score = models.IntegerField(default=70, help_text="Percentage required to pass")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_quizzes')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = "Quizzes"
+
+    def __str__(self):
+        return self.title
+
+    def total_questions(self):
+        return self.questions.count()
+
+    def total_points(self):
+        return sum(question.points for question in self.questions.all())
+
+
+class QuizQuestion(models.Model):
+    QUESTION_TYPES = [
+        ('mcq', 'Multiple Choice'),
+        ('true_false', 'True/False'),
+        ('text', 'Text Input'),
+    ]
+    
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
+    question_text = models.TextField()
+    question_type = models.CharField(max_length=20, choices=QUESTION_TYPES, default='mcq')
+    choices = models.JSONField(blank=True, null=True, help_text="For MCQ questions: JSON array of choices")
+    correct_answer = models.TextField(help_text="Correct answer text")
+    explanation = models.TextField(blank=True, null=True)
+    points = models.IntegerField(default=1)
+    order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'created_at']
+
+    def __str__(self):
+        return f"{self.quiz.title} - Q{self.order}: {self.question_text[:50]}..."
+
+
+class QuizAttempt(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    score = models.IntegerField(default=0)
+    total_points = models.IntegerField(default=0)
+    percentage = models.FloatField(default=0.0)
+    passed = models.BooleanField(default=False)
+    time_taken = models.DurationField(null=True, blank=True)
+    is_locked = models.BooleanField(default=False)  # For browser locking
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    violations_count = models.IntegerField(default=0, help_text="Number of browser lock violations during quiz")
+
+    class Meta:
+        ordering = ['-started_at']
+        unique_together = [['user', 'quiz', 'started_at']]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.quiz.title} ({self.percentage:.1f}%)"
+
+    def calculate_percentage(self):
+        if self.total_points > 0:
+            self.percentage = (self.score / self.total_points) * 100
+            self.passed = self.percentage >= self.quiz.passing_score
+        else:
+            self.percentage = 0
+            self.passed = False
+        return self.percentage
+
+
+class QuizAnswer(models.Model):
+    attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name='answers')
+    question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE)
+    user_answer = models.TextField()
+    is_correct = models.BooleanField(default=False)
+    points_earned = models.IntegerField(default=0)
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [['attempt', 'question']]
+
+    def __str__(self):
+        return f"{self.attempt.user.username} - Q{self.question.order}: {self.user_answer[:30]}..."
+
+
+class QuizLock(models.Model):
+    """Tracks quiz-specific locks for users who violated security rules"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_locks')
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='user_locks')
+    locked_at = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField(help_text="Reason for the quiz lock")
+    violations_count = models.IntegerField(default=5, help_text="Number of violations that triggered the lock")
+    
+    class Meta:
+        unique_together = [['user', 'quiz']]
+        ordering = ['-locked_at']
+    
+    def __str__(self):
+        return f"{self.user.first_name} {self.user.last_name} locked from '{self.quiz.title}'"
+
+
+class AdminNavLink(models.Model):
+    """Tracks pinned navigation links for admin navbar"""
+    title = models.CharField(max_length=100, help_text="Display name for the nav link")
+    url_name = models.CharField(max_length=100, help_text="Django URL name for reverse lookup")
+    icon = models.CharField(max_length=50, help_text="FontAwesome icon class (e.g., 'fas fa-users')")
+    description = models.TextField(help_text="Description of what this link does")
+    order = models.PositiveIntegerField(default=0, help_text="Display order in navigation")
+    is_active = models.BooleanField(default=True, help_text="Whether this link appears in navigation")
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_nav_links')
+    
+    class Meta:
+        ordering = ['order', 'title']
+        unique_together = [['url_name']]
+    
+    def __str__(self):
+        return f"{self.title} ({'Active' if self.is_active else 'Inactive'})"
+
+
 
 class BlogPost(models.Model): 
     title = models.CharField(max_length=255)
@@ -608,6 +769,13 @@ class Job(models.Model):
     job_type = models.CharField(max_length=50, choices=[('FT', 'Full-time'), ('PT', 'Part-time'), ('CT', 'Contract'), ('internship', 'Internship')])
     posted_date = models.DateField(auto_now_add=True)
     closing_date = models.DateField()
+    
+    # Job status for archiving
+    status = models.CharField(max_length=20, choices=[
+        ('active', 'Active'),
+        ('archived', 'Archived'),
+        ('draft', 'Draft')
+    ], default='active')
     
     # New detailed fields
     responsibilities = HTMLField(blank=True, null=True)
@@ -747,12 +915,20 @@ class Experience(models.Model):
         return f"{self.name} - {self.feedback[:50]}"
       
 class UserBlogPage(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
     name = models.CharField(max_length=100)
     title = models.TextField()
     description = models.TextField()
     file = models.TextField(blank=True, null=True)  # <-- Base64 Image field
     created_at = models.DateTimeField(auto_now_add=True)
-    isShow = models.BooleanField(default=False)
+    isShow = models.BooleanField(default=False)  # Keep for backwards compatibility
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
     def __str__(self):
         return f"{self.name} - {self.title[:50]} - {self.description[:50]}"

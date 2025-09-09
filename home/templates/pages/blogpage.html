@@ -4,174 +4,241 @@
 {% block content %}
 <main>
 
-{% include 'includes/pre-loader.html' %}
+  {% include 'includes/pre-loader.html' %}
 
-<style>
-  .masonry-grid {
-    column-count: 3;
-    column-gap: 1rem;
-  }
+  <style>
+    .masonry-grid {
+      column-count: 3;
+      column-gap: 1rem;
+    }
 
-  .masonry-item {
-    display: inline-block;
-    width: 100%;
-    margin-bottom: 1rem;
-  }
-</style>
+    .masonry-item {
+      display: inline-block;
+      width: 100%;
+      margin-bottom: 1rem;
+    }
+  </style>
 
-<section class="section section-lg">
-  <div class="container">
-    <h4>{% trans "User Blogs" %}</h4>
-    <br> 
-    <p>{% trans "Please provide your blog details with our company." %}</p>
-    <br>
-
-    <!-- Blog Submission Form -->
-    <form method="post" action="{% url 'blogpage' %}" class="card" enctype="multipart/form-data" style="padding: 20px;">
-      {% csrf_token %}
-      <div class="card-header">{% trans "Share Your Blog" %}</div>
-      <div class="form-group">
-        <br/>
-        <label for="id_name">{% trans "Name:" %}</label>
-        {{ form.name }}
-        <br/>
-      </div>
-      <br/>
-      <div class="form-group">
-        <label for="id_title">{% trans "Blog Title:" %}</label>
-        {{ form.title }}
-      </div>
-      <br/>
-      <div class="form-group">
-        <label for="id_description">{% trans "Blog Description:" %}</label>
-        {{ form.description }}
-      </div>
-      <br/>
-      <div class="form-group">
-        <label for="id_file">{% trans "Image Upload (optional):" %}</label>
-        {{ form.file }}
-      </div>
-      <br/>
-      <button type="reset" class="btn btn-secondary">{% trans "Reset" %}</button>
-      <br/>
-      <button type="submit" class="btn btn-primary">{% trans "Submit" %}</button>
-    </form>
-
-    <br><br>
-
-    <!-- Blog Cards -->
-    <div class="feedback-list">
-      <h5><u>{% trans "Recent Blog Pages" %}</u></h5>
+  <section class="section section-lg">
+    <div class="container">
+      <h4>{% trans "User Blogs" %}</h4>
       <br>
-      <div class="masonry-grid">
-        {% if blogpages %}
-          {% for blogpage in blogpages %}
-            <div class="masonry-item">
-              <div class="card" style="width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px;">
-                {% if blogpage.file %}
-                  <img src="data:image/jpeg;base64,{{ blogpage.file }}" class="card-img-top"
-                      style="border-top-left-radius: 15px; border-top-right-radius: 15px; height: 200px; object-fit: cover;" 
-                      alt="Blog Image">
-                {% else %}
-                  <div style="height: 200px; background-color: #e0e0e0; border-top-left-radius: 15px; border-top-right-radius: 15px; display: flex; align-items: center; justify-content: center;">
-                    <span class="text-muted">{% trans "No Image" %}</span>
-                  </div>
-                {% endif %}
-                <div class="card-body">
-                  <h5 class="card-title">{{ blogpage.title }}</h5>
-                  <h6 class="card-subtitle mb-2 text-muted">By {{ blogpage.name }}</h6>
-                  <p class="card-text">{{ blogpage.description|truncatewords:20 }}</p>
+      <p>{% trans "Please provide your blog details with our company." %}</p>
+      <br>
 
-                  <div style="display: flex; justify-content: space-between;">
-                    <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editModal"
-                      onclick="openEditModal('{{ blogpage.id }}', '{{ blogpage.name }}', '{{ blogpage.title }}', `{{ blogpage.description|escapejs }}`)">
-                      {% trans "Edit" %}
-                    </button>
-                    <form method="post" action="{% url 'delete_blogpage' blogpage.id %}">
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-danger btn-sm">{% trans "Delete" %}</button>
-                    </form>
-                  </div>
+      {% if user.is_authenticated %}
+      <!-- Blog Submission Form -->
+      <form method="post" action="{% url 'blogpage' %}" class="card" enctype="multipart/form-data"
+        style="padding: 20px;">
+        {% csrf_token %}
+        <div class="card-header">{% trans "Share Your Blog" %}</div>
+        <div class="form-group">
+          <br />
+          <label for="id_name">{% trans "Name:" %}</label>
+          {{ form.name }}
+          <br />
+        </div>
+        <br />
+        <div class="form-group">
+          <label for="id_title">{% trans "Blog Title:" %}</label>
+          {{ form.title }}
+        </div>
+        <br />
+        <div class="form-group">
+          <label for="id_description">{% trans "Blog Description:" %}</label>
+          {{ form.description }}
+        </div>
+        <br />
+        <div class="form-group">
+          <label for="id_file">{% trans "Image Upload (optional):" %}</label>
+          {{ form.file }}
+        </div>
+        <br />
+        <button type="reset" class="btn btn-secondary">{% trans "Reset" %}</button>
+        <br />
+        <button type="submit" class="btn btn-primary">{% trans "Submit" %}</button>
+      </form>
+      {% else %}
+      <!-- Login prompt for anonymous users -->
+      <div class="card" style="padding: 20px;">
+        <div class="card-header">{% trans "Share Your Blog" %}</div>
+        <div class="card-body text-center">
+          <p>{% trans "Please log in to submit a blog post." %}</p>
+          <a href="{% url 'login' %}" class="btn btn-primary">{% trans "Log In" %}</a>
+          <a href="{% url 'register' %}" class="btn btn-secondary">{% trans "Sign Up" %}</a>
+        </div>
+      </div>
+      {% endif %}
+
+      <br><br>
+
+      <!-- Blog Cards -->
+      <div class="feedback-list">
+        {% if user.is_staff %}
+        <h5><u>{% trans "All Blog Submissions" %}</u></h5>
+        <p class="text-muted">{% trans "Manage all user blog submissions - approve, reject, or delete posts." %}</p>
+        {% elif user.is_authenticated %}
+        <h5><u>{% trans "Your Blog Submissions" %}</u></h5>
+        <p class="text-muted">{% trans "View and manage your blog submissions. You can edit pending or rejected posts."
+          %}</p>
+        {% else %}
+        <h5><u>{% trans "Published Blogs" %}</u></h5>
+        <p class="text-muted">{% trans "Browse approved blog posts from our community." %}</p>
+        {% endif %}
+        <br>
+        <div class="masonry-grid">
+          {% if blogpages %}
+          {% for blogpage in blogpages %}
+          <div class="masonry-item">
+            <div class="card" style="width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px;">
+              {% if blogpage.file %}
+              <img src="data:image/jpeg;base64,{{ blogpage.file }}" class="card-img-top"
+                style="border-top-left-radius: 15px; border-top-right-radius: 15px; height: 200px; object-fit: cover;"
+                alt="Blog Image">
+              {% else %}
+              <div
+                style="height: 200px; background-color: #e0e0e0; border-top-left-radius: 15px; border-top-right-radius: 15px; display: flex; align-items: center; justify-content: center;">
+                <span class="text-muted">{% trans "No Image" %}</span>
+              </div>
+              {% endif %}
+              <div class="card-body">
+                <h5 class="card-title">{{ blogpage.title }}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">By {{ blogpage.name }}</h6>
+                <p class="card-text">{{ blogpage.description|truncatewords:20 }}</p>
+
+                <!-- Status Badge -->
+                {% if blogpage.status == 'pending' %}
+                <span class="badge badge-warning">{% trans "Pending Review" %}</span>
+                {% elif blogpage.status == 'approved' %}
+                <span class="badge badge-success">{% trans "Approved" %}</span>
+                {% elif blogpage.status == 'rejected' %}
+                <span class="badge badge-danger">{% trans "Rejected" %}</span>
+                {% endif %}
+                <br><br>
+
+                <div style="display: flex; justify-content: space-between;">
+                  {% if user.is_staff %}
+                  <!-- Staff/Admin view: Show approve/reject buttons -->
+                  {% if blogpage.status == 'pending' %}
+                  <a href="{% url 'approve_blogpage' blogpage.id %}" class="btn btn-success btn-sm">
+                    {% trans "Approve" %}
+                  </a>
+                  <a href="{% url 'reject_blogpage' blogpage.id %}" class="btn btn-danger btn-sm">
+                    {% trans "Reject" %}
+                  </a>
+                  {% elif blogpage.status == 'approved' %}
+                  <a href="{% url 'reject_blogpage' blogpage.id %}" class="btn btn-warning btn-sm">
+                    {% trans "Unpublish" %}
+                  </a>
+                  {% elif blogpage.status == 'rejected' %}
+                  <a href="{% url 'approve_blogpage' blogpage.id %}" class="btn btn-success btn-sm">
+                    {% trans "Approve" %}
+                  </a>
+                  <form method="post" action="{% url 'delete_blogpage' blogpage.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm">{% trans "Delete" %}</button>
+                  </form>
+                  {% endif %}
+                  {% else %}
+                  <!-- Regular user view: Show edit/delete only for their own posts -->
+                  {% if blogpage.user == user %}
+                  {% if blogpage.status == 'pending' or blogpage.status == 'rejected' %}
+                  <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editModal"
+                    onclick="openEditModal('{{ blogpage.id }}', '{{ blogpage.name }}', '{{ blogpage.title }}', `{{ blogpage.description|escapejs }}`)">
+                    {% trans "Edit" %}
+                  </button>
+                  <form method="post" action="{% url 'delete_blogpage' blogpage.id %}" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm">{% trans "Delete" %}</button>
+                  </form>
+                  {% elif blogpage.status == 'approved' %}
+                  <span class="text-muted">{% trans "Published - Contact staff to modify" %}</span>
+                  {% endif %}
+                  {% endif %}
+                  {% endif %}
                 </div>
               </div>
             </div>
-          {% endfor %}
-        {% else %}
-          <p>{% trans "No Blogs Yet" %}</p>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Edit Blog Modal -->
-    <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="editModalLabel" aria-hidden="true">
-      <div class="modal-dialog" role="document">
-        <form id="editForm" method="post" enctype="multipart/form-data">
-          {% csrf_token %}
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 style="color: black;" id="editModalLabel">{% trans "Edit Blog" %}</h5>
-              <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="resetEditForm()">
-                <span aria-hidden="true">&times;</span>
-              </button>
-            </div>
-            <div class="modal-body">
-              <input type="hidden" name="id" id="editBlogId">
-              <div class="form-group">
-                <label for="editName" style="color: black;">{% trans "Name" %}</label>
-                <input type="text" class="form-control" id="editName" name="name" required>
-              </div>
-              <br/>
-              <div class="form-group">
-                <label for="editTitle" style="color: black;">{% trans "Blog Title" %}</label>
-                <input type="text" class="form-control" id="editTitle" name="title" required>
-              </div>
-              <br/>
-              <div class="form-group">
-                <label for="editDescription" style="color: black;">{% trans "Blog Description" %}</label>
-                <textarea class="form-control" id="editDescription" name="description" rows="4" required></textarea>
-              </div>
-              <br/>
-              <div class="form-group">
-                <label for="editFile" style="color: black;">{% trans "Change Image (optional)" %}</label>
-                <input style="color: black;" type="file" class="form-control-file" id="editFile" name="file">
-              </div>
-            </div>           
-            <br/>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-dismiss="modal" onclick="resetEditForm()">{% trans "Cancel" %}</button>
-              <button type="submit" class="btn btn-success">{% trans "Save Changes" %}</button>
-            </div>
           </div>
-        </form>
+          {% endfor %}
+          {% else %}
+          <p>{% trans "No Blogs Yet" %}</p>
+          {% endif %}
+        </div>
       </div>
+
+      <!-- Edit Blog Modal -->
+      <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="editModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <form id="editForm" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 style="color: black;" id="editModalLabel">{% trans "Edit Blog" %}</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="resetEditForm()">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <input type="hidden" name="id" id="editBlogId">
+                <div class="form-group">
+                  <label for="editName" style="color: black;">{% trans "Name" %}</label>
+                  <input type="text" class="form-control" id="editName" name="name" required>
+                </div>
+                <br />
+                <div class="form-group">
+                  <label for="editTitle" style="color: black;">{% trans "Blog Title" %}</label>
+                  <input type="text" class="form-control" id="editTitle" name="title" required>
+                </div>
+                <br />
+                <div class="form-group">
+                  <label for="editDescription" style="color: black;">{% trans "Blog Description" %}</label>
+                  <textarea class="form-control" id="editDescription" name="description" rows="4" required></textarea>
+                </div>
+                <br />
+                <div class="form-group">
+                  <label for="editFile" style="color: black;">{% trans "Change Image (optional)" %}</label>
+                  <input style="color: black;" type="file" class="form-control-file" id="editFile" name="file">
+                </div>
+              </div>
+              <br />
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" onclick="resetEditForm()">{% trans
+                  "Cancel" %}</button>
+                <button type="submit" class="btn btn-success">{% trans "Save Changes" %}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </div>
 
-  </div>
+    <!-- jQuery, Popper, Bootstrap -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
-  <!-- jQuery, Popper, Bootstrap -->
-  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Script to open modal with blog data -->
+    <script>
+      function openEditModal(id, name, title, description) {
+        document.getElementById('editBlogId').value = id;
+        document.getElementById('editName').value = name;
+        document.getElementById('editTitle').value = title;
+        document.getElementById('editDescription').value = description;
 
-  <!-- Script to open modal with blog data -->
-  <script>
-    function openEditModal(id, name, title, description) {
-      document.getElementById('editBlogId').value = id;
-      document.getElementById('editName').value = name;
-      document.getElementById('editTitle').value = title;
-      document.getElementById('editDescription').value = description;
+        // Update form action dynamically
+        document.getElementById('editForm').action = `/edit_blogpage/${id}/`;
+      }
 
-      // Update form action dynamically
-      document.getElementById('editForm').action = `/edit_blogpage/${id}/`;
-    }
+      // Optional: Reset form fields when closing modal
+      function resetEditForm() {
+        document.getElementById('editForm').reset();
+      }
+    </script>
 
-    // Optional: Reset form fields when closing modal
-    function resetEditForm() {
-      document.getElementById('editForm').reset();
-    }
-  </script>
-
-</section>
+  </section>
 
 </main>
 {% endblock %}

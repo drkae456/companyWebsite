@@ -12,7 +12,7 @@ from datetime import timedelta
 import logging
 import nh3
 
-from .models import Student, Smishingdetection_join_us, Projects_join_us, Webpage, Project, Profile, Experience, UserBlogPage, SecurityEvent, JobApplication, CyberChallenge
+from .models import Student, Smishingdetection_join_us, Projects_join_us, Webpage, Project, Profile, Experience, UserBlogPage, SecurityEvent, JobApplication, Job, CyberChallenge
 from .models import PenTestingRequest, SecureCodeReviewRequest
 from .validators import xss_detection
 from utils.sanitizer import clean_text, clean_email, clean_url, clean_html, clean_numeric
@@ -537,6 +537,24 @@ class JobApplicationForm(forms.Form):
 
     def clean_email(self):
         return clean_email(self.cleaned_data.get('email', ''))
+
+class JobForm(forms.ModelForm):
+    class Meta:
+        model = Job
+        fields = ['title', 'description', 'location', 'job_type', 'closing_date', 'status', 
+                 'responsibilities', 'qualifications', 'benefits', 'salary_range', 
+                 'experience_level', 'department', 'skills_required']
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Job Title'}),
+            'location': forms.Select(attrs={'class': 'form-select form-select-lg'}),
+            'job_type': forms.Select(attrs={'class': 'form-select form-select-lg'}),
+            'closing_date': forms.DateInput(attrs={'class': 'form-control form-control-lg', 'type': 'date'}),
+            'status': forms.Select(attrs={'class': 'form-select form-select-lg'}),
+            'salary_range': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'e.g., $50,000 - $70,000'}),
+            'experience_level': forms.Select(attrs={'class': 'form-select form-select-lg'}),
+            'department': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Department'}),
+            'skills_required': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Required skills (comma separated)'}),
+        }
 
 
 class PenTestingRequestForm(forms.ModelForm):

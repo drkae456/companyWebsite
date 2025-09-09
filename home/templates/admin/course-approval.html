@@ -7,6 +7,14 @@
         <h1 class="text-light">Course Approval Management</h1>
     </div>
 
+    {% if is_project_restricted %}
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Project-Based View:</strong> You are viewing course approvals for users in your assigned project(s): 
+        {% for project in accessible_projects %}{{ project.title }}{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+
     {% if pending_courses %}
     <div class="row">
         {% for skill in pending_courses %}

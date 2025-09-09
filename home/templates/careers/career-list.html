@@ -98,7 +98,7 @@
   .job-card {
     background-color: white;
     border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     padding: 1.5rem;
     margin-bottom: 1.5rem;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -106,7 +106,7 @@
 
   .job-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
   }
 
   .job-header {
@@ -235,12 +235,12 @@
       flex-direction: column;
       align-items: stretch;
     }
-    
+
     .search-input,
     .filter-select {
       min-width: auto;
     }
-    
+
     .job-actions {
       flex-direction: column;
     }
@@ -251,13 +251,14 @@
   <div class="search-filter-section position-relative">
     <!-- Recently Viewed Pages Button -->
     <button class="recently-viewed-btn">Recently Viewed Pages</button>
-    
+
     <h2>Explore Job Opportunities</h2>
-    
+
     <!-- Search & Filter Form -->
     <form method="GET" id="filterForm" class="filter-form">
-      <input type="text" name="search" class="search-input" placeholder="Search by title or description..." value="{{ request.GET.search }}" oninput="submitFilterForm()">
-      
+      <input type="text" name="search" class="search-input" placeholder="Search by title or description..."
+        value="{{ request.GET.search }}" oninput="submitFilterForm()">
+
       <select name="job_type" class="filter-select" onchange="submitFilterForm()">
         <option value="" {% if not request.GET.job_type %}selected{% endif %}>All Job Types</option>
         <option value="FT" {% if request.GET.job_type == 'FT' %}selected{% endif %}>Full-Time</option>
@@ -265,68 +266,95 @@
         <option value="CT" {% if request.GET.job_type == 'CT' %}selected{% endif %}>Contract</option>
         <option value="internship" {% if request.GET.job_type == 'internship' %}selected{% endif %}>Internship</option>
       </select>
-      
+
       <select name="location" class="filter-select" onchange="submitFilterForm()">
         <option value="" {% if not request.GET.location %}selected{% endif %}>All Locations</option>
         <option value="Remote" {% if request.GET.location == 'Remote' %}selected{% endif %}>Remote</option>
         <option value="OnSite" {% if request.GET.location == 'OnSite' %}selected{% endif %}>OnSite</option>
         <option value="Hybrid" {% if request.GET.location == 'Hybrid' %}selected{% endif %}>Hybrid</option>
       </select>
-      
+
       <button type="button" class="clear-filters-btn" onclick="clearFilters()">Clear Filters</button>
     </form>
   </div>
-  
+
+  <!-- Staff Admin Controls -->
+  {% if user.is_authenticated and user.is_staff %}
+  <div class="admin-controls">
+    <div class="container">
+      <div class="admin-panel"
+        style="background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%); padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem; text-align: center; box-shadow: 0 4px 15px rgba(255, 205, 17, 0.4);">
+        <h3 style="color: #1c2540; margin-bottom: 1rem; font-weight: bold;"><i class="fas fa-tools"></i> Staff Controls
+        </h3>
+        <div class="btn-group" role="group">
+          <a href="{% url 'staff_job_management' %}" class="btn btn-lg me-2"
+            style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; border: none;">
+            <i class="fas fa-briefcase"></i> Manage Jobs
+          </a>
+          <a href="{% url 'staff_create_job' %}" class="btn btn-lg me-2"
+            style="background: linear-gradient(87deg, #3aaf85 0%, #2ebb88 100%); color: white; border: none;">
+            <i class="fas fa-plus"></i> Create Job
+          </a>
+          <a href="{% url 'staff_job_applications' %}" class="btn btn-lg"
+            style="background: linear-gradient(87deg, #6b7280 0%, #4b5563 100%); color: white; border: none;">
+            <i class="fas fa-file-alt"></i> View Applications
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Job Listings -->
   <div class="job-listings">
     <div class="container">
       <div id="job-listings">
         {% if jobs %}
-          {% for job in jobs %}
-            <div class="job-card">
-              <div class="job-header">
-                <div>
-                  <h3 class="job-title">{{ job.title }}</h3>
-                  <span class="category-tag">{{ job.get_job_type_display }}</span>
-                </div>
-                <button class="save-job-btn" title="Save Job">♡</button>
-              </div>
-              
-              <div class="job-details">
-                <div class="job-detail">
-                  <i>📍</i>
-                  <span>{{ job.location }}</span>
-                </div>
-                <div class="job-detail">
-                  <i>🕒</i>
-                  <span>{{ job.get_job_type_display }}</span>
-                </div>
-                {% if job.salary_range %}
-                <div class="job-detail">
-                  <i>💰</i>
-                  <span>{{ job.salary_range }}</span>
-                </div>
-                {% endif %}
-                <div class="job-detail">
-                  <i>📅</i>
-                  <span>Posted {{ job.posted_date|date:"Y-m-d" }}</span>
-                </div>
-              </div>
-              
-              <p class="job-description">{{ job.description|striptags|truncatewords:30 }}</p>
-              
-              <div class="job-actions">
-                <a href="{% url 'career-detail' job.id %}" class="btn-view-details">View Details</a>
-                <a href="{% url 'career-application' job.id %}" class="btn-apply-now">Apply Now</a>
-              </div>
+        {% for job in jobs %}
+        <div class="job-card">
+          <div class="job-header">
+            <div>
+              <h3 class="job-title">{{ job.title }}</h3>
+              <span class="category-tag">{{ job.get_job_type_display }}</span>
             </div>
-          {% endfor %}
-        {% else %}
-          <div class="no-jobs">
-            <div class="emoji">😔</div>
-            <h5>No jobs found.</h5>
-            <p>Try adjusting the filters or check back later.</p>
+            <button class="save-job-btn" title="Save Job">♡</button>
           </div>
+
+          <div class="job-details">
+            <div class="job-detail">
+              <i>📍</i>
+              <span>{{ job.location }}</span>
+            </div>
+            <div class="job-detail">
+              <i>🕒</i>
+              <span>{{ job.get_job_type_display }}</span>
+            </div>
+            {% if job.salary_range %}
+            <div class="job-detail">
+              <i>💰</i>
+              <span>{{ job.salary_range }}</span>
+            </div>
+            {% endif %}
+            <div class="job-detail">
+              <i>📅</i>
+              <span>Posted {{ job.posted_date|date:"Y-m-d" }}</span>
+            </div>
+          </div>
+
+          <p class="job-description">{{ job.description|striptags|truncatewords:30 }}</p>
+
+          <div class="job-actions">
+            <a href="{% url 'career-detail' job.id %}" class="btn-view-details">View Details</a>
+            <a href="{% url 'career-application' job.id %}" class="btn-apply-now">Apply Now</a>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="no-jobs">
+          <div class="emoji">😔</div>
+          <h5>No jobs found.</h5>
+          <p>Try adjusting the filters or check back later.</p>
+        </div>
         {% endif %}
       </div>
     </div>
@@ -342,15 +370,15 @@
     fetch(`/careers/?${params}`, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
-    .then(response => response.text())
-    .then(data => {
-      const parser = new DOMParser();
-      const html = parser.parseFromString(data, 'text/html');
-      const updatedListings = html.querySelector("#job-listings");
-      document.getElementById("job-listings").innerHTML = updatedListings.innerHTML;
-    });
+      .then(response => response.text())
+      .then(data => {
+        const parser = new DOMParser();
+        const html = parser.parseFromString(data, 'text/html');
+        const updatedListings = html.querySelector("#job-listings");
+        document.getElementById("job-listings").innerHTML = updatedListings.innerHTML;
+      });
   }
-  
+
   function clearFilters() {
     document.querySelector('input[name="search"]').value = '';
     document.querySelector('select[name="job_type"]').value = '';
@@ -360,6 +388,3 @@
 </script>
 
 {% endblock %}
-
-
-

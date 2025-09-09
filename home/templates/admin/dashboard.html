@@ -1,191 +1,933 @@
-{% extends "admin/base_site.html" %}
+{% extends "layouts/base.html" %}
+{% load static %}
+
 {% block content %}
 <style>
-.stats-container {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  text-align: center;
-}
+  .admin-content-wrapper {
+      position: relative;
+      padding-top: 7rem;
+      padding-bottom: 3rem;
+  }
 
-.stats-container p {
-  flex: 1;
-  background-color: #ffcd11;
-  padding: 1rem;
-  border-radius: 8px;
-  font-weight: bold;
-  height: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.charts-row {
-  display: flex;
-  gap: 2rem;
-  justify-content: flex-start;
-  flex-wrap: wrap;
-}
-
-.chart-box {
-  flex: 1;
-  min-width: 350px;
-  max-width: 600px;
-}
-
-</style>
-<!--Block Row -->
- 
-<div class="stats-container">
-  <p>Total Users: {{ total_users }}</p>
-  <p>Total Feedback: {{ total_feedback }}</p>
-  <p>Total Cyber Challenges: {{ total_challenges }}</p>
-  <p>Total Results In CyberChallenge Dashboard: {{ total_dashboard }}</p>
-</div>
-
-<!-- Charts Row -->
-<div class="charts-row">
-  <!-- Feedback Chart-->
-  <div class="chart-box">
-    <canvas id="experienceChart" width="400" height="400"></canvas>
-    <span id="feedback_labels" style="display: none;">{{ feedback_labels|safe }}</span>
-    <span id="feedback_data" style="display: none;">{{ feedback_data|safe }}</span>
-  </div>
-
-  <!--Questions per Category in CyberChallenge Chart -->
-  <div class="chart-box">
-    <canvas id="questionsChart" width="800" height="200"></canvas>
-    <span id="count_network" style="display: none;">{{ total_question_in_each_category.network }}</span>
-    <span id="count_web" style="display: none;">{{ total_question_in_each_category.web }}</span>
-    <span id="count_crypto" style="display: none;">{{ total_question_in_each_category.crypto }}</span>
-    <span id="count_general" style="display: none;">{{ total_question_in_each_category.general }}</span>
-  </div>
-  <!-- User Registrations Over Time Chart -->
-  <div class="chart-box">
-    <canvas id="userRegistrationsChart" width="400" height="400"></canvas>
-    <span id="user_labels" style="display: none;">{{ user_labels }}</span>
-    <span id="user_registration" style="display: none;">{{ user_registration }}</span>
-  </div>
-</div>
-
-
-<!-- Include Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<script>
-  // const totalChallenges = parseInt(document.getElementById("total_challenges").textContent.trim()) || 0;
-
-  // Feedback Chart
-  const feedback_labels = JSON.parse(document.getElementById('feedback_labels').textContent); 
-  const feedback_data = JSON.parse(document.getElementById('feedback_data').textContent);
-
-  new Chart(document.getElementById('experienceChart').getContext('2d'), {
-    type: 'bar',
-    data: {
-      labels: feedback_labels,
-      datasets: [{
-        label: 'Number of feedbacks',
-        data: feedback_data,
-        backgroundColor: '#4CAF50',
-        borderRadius: 5
-      }]
-    },
-    options: {
-      plugins: {
-        title: {
-          display: true,
-          text: 'Numbers of feedback receive in this week'
-        }
+  @media (min-width: 992px) {
+      .admin-content-wrapper {
+          padding-top: 10rem;
+          padding-bottom: 3rem;
       }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          stepSize: 1,
-          callback: function(value) {
-            if (Number.isInteger(value)) {
-              return value;
+  }
+</style>
+<!-- Staff Dashboard Header -->
+<div class="admin-content-wrapper">
+  <div class="row mb-5">
+      <div class="col-12">
+          <div class="card shadow-sm border-0 bg-light text-dark">
+              <div class="card-body text-center py-3">
+                  <div class="mb-2">
+                      <i class="fas fa-cogs fa-2x mb-2 text-primary"></i>
+                  </div>
+                  <h2 class="card-title mb-2">Staff Dashboard</h2>
+                  <p class="card-text mb-0">Management Centre for Hardhat Website</p>
+                  <p class="card-text mb-0">Tip: Use Pin to add to Nav Bar under Admin Settings</p>
+              </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Dashboard Content -->
+<section class="section section-lg pt-0">
+  <div class="container">
+
+    <style>
+      .stats-container {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        text-align: center;
+      }
+
+      .stats-container p {
+        flex: 1;
+        background-color: #ffcd11;
+        padding: 1rem;
+        border-radius: 8px;
+        font-weight: bold;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .charts-row {
+        display: flex;
+        gap: 2rem;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .chart-box {
+        flex: 1;
+        min-width: 350px;
+        max-width: 600px;
+      }
+    </style>
+
+    <!-- Admin Navigation Cards -->
+    <div class="admin-nav mb-5">
+      <div class="row g-4">
+        
+        <!-- User Management Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-users text-primary me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">User Management</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="user_management" 
+                        data-title="User Management" 
+                        data-icon="fas fa-users" 
+                        data-description="Manage user accounts, assign users to projects, update student information and bulk operations for efficient user administration."
+                        title="{% if 'user_management' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'user_management' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Manage user accounts, assign users to projects, update student information and bulk operations for efficient user administration.</p>
+              <a href="{% url 'user_management' %}" class="btn btn-primary mt-auto">Manage Users</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Challenge Management Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-trophy text-warning me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Challenge Management</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="challenge_management" 
+                        data-title="Challenge Management" 
+                        data-icon="fas fa-trophy" 
+                        data-description="Add, edit, delete and archive Cyber Challenges for users to compete to get top score on leaderboard. Create engaging cybersecurity puzzles."
+                        title="{% if 'challenge_management' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'challenge_management' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Add, edit, delete and archive Cyber Challenges for users to compete to get top score on leaderboard. Create engaging cybersecurity puzzles.</p>
+              <a href="{% url 'challenge_management' %}" class="btn btn-warning mt-auto">Manage Challenges</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project Teams Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-project-diagram text-success me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Project Teams</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="project_teams" 
+                        data-title="Project Teams" 
+                        data-icon="fas fa-project-diagram" 
+                        data-description="View and manage project teams, add new projects, edit team assignments and track project progress across all active initiatives."
+                        title="{% if 'project_teams' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'project_teams' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">View and manage project teams, add new projects, edit team assignments and track project progress across all active initiatives.</p>
+              <a href="{% url 'project_teams' %}" class="btn btn-success mt-auto">View Projects</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Course Approval Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-graduation-cap text-info me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Course Approval</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="course_approval" 
+                        data-title="Course Approval" 
+                        data-icon="fas fa-graduation-cap" 
+                        data-description="Review and approve pending upskilling courses submitted by staff. Ensure quality control and maintain course standards for learners."
+                        title="{% if 'course_approval' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'course_approval' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Review and approve pending upskilling courses submitted by staff. Ensure quality control and maintain course standards for learners.</p>
+              <a href="{% url 'course_approval' %}" class="btn btn-info mt-auto">Review Courses</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Blog Approval Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-blog text-purple me-3" style="font-size: 1.5rem; color: #6f42c1;"></i>
+                  <h5 class="card-title mb-0">Blog Approval</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="adminblogpage" 
+                        data-title="Blog Approval" 
+                        data-icon="fas fa-blog" 
+                        data-description="Approve or reject blog posts submitted by users. Moderate content quality, check for compliance and publish approved articles."
+                        title="{% if 'adminblogpage' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'adminblogpage' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Approve or reject blog posts submitted by users. Moderate content quality, check for compliance and publish approved articles.</p>
+              <a href="{% url 'adminblogpage' %}" class="btn mt-auto" style="background-color: #6f42c1; color: white;">Moderate Blogs</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Job Applications Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-briefcase text-dark me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Job Applications</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="staff_job_applications" 
+                        data-title="Job Applications" 
+                        data-icon="fas fa-briefcase" 
+                        data-description="Review job applications from candidates, manage recruitment process and coordinate with hiring teams for open positions."
+                        title="{% if 'staff_job_applications' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'staff_job_applications' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Review job applications from candidates, manage recruitment process and coordinate with hiring teams for open positions.</p>
+              <a href="{% url 'staff_job_applications' %}" class="btn btn-dark mt-auto">Review Applications</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leaderboard Management Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-medal text-warning me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Leaderboard Management</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="staff_leaderboard_management" 
+                        data-title="Leaderboard Management" 
+                        data-icon="fas fa-medal" 
+                        data-description="Manage leaderboard entries, edit user scores and rankings. Maintain fair competition and resolve disputes in challenge scores."
+                        title="{% if 'staff_leaderboard_management' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'staff_leaderboard_management' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Manage leaderboard entries, edit user scores and rankings. Maintain fair competition and resolve disputes in challenge scores.</p>
+              <a href="{% url 'staff_leaderboard_management' %}" class="btn btn-warning mt-auto">Manage Leaderboard</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Certificate Verification Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-certificate text-secondary me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Certificate Verification</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="certificate_verification" 
+                        data-title="Certificate Verification" 
+                        data-icon="fas fa-certificate" 
+                        data-description="Verify uploaded certificates from users for upskilling courses. Ensure authenticity and maintain certification records."
+                        title="{% if 'certificate_verification' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'certificate_verification' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Verify uploaded certificates from users for upskilling courses. Ensure authenticity and maintain certification records.</p>
+              <a href="{% url 'certificate_verification' %}" class="btn btn-secondary mt-auto">Verify Certificates</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reports Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-chart-line text-danger me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Reports</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="reports" 
+                        data-title="Reports" 
+                        data-icon="fas fa-chart-line" 
+                        data-description="View comprehensive reports and analytics. Access blog reports, user activity, system metrics and downloadable data exports."
+                        title="{% if 'reports' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'reports' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">View comprehensive reports and analytics. Access blog reports, user activity, system metrics and downloadable data exports.</p>
+              <a href="/reports" class="btn btn-danger mt-auto">View Reports</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Announcement Management Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-bullhorn text-orange me-3" style="font-size: 1.5rem; color: #ff8c00;"></i>
+                  <h5 class="card-title mb-0">Announcement Management</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="announcement_management" 
+                        data-title="Announcement Management" 
+                        data-icon="fas fa-bullhorn" 
+                        data-description="Create, edit and manage site-wide announcements. Control what messages are displayed to users across the platform."
+                        title="{% if 'announcement_management' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'announcement_management' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Create, edit and manage site-wide announcements. Control what messages are displayed to users across the platform.</p>
+              <a href="{% url 'announcement_management' %}" class="btn mt-auto" style="background-color: #ff8c00; color: white;">Manage Announcements</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quiz Management Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-question-circle text-success me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Quiz Management</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="quiz_management" 
+                        data-title="Quiz Management" 
+                        data-icon="fas fa-question-circle" 
+                        data-description="Create and manage interactive quizzes with multiple questions. Set time limits, browser locking, and track user performance."
+                        title="{% if 'quiz_management' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'quiz_management' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Create and manage interactive quizzes with multiple questions. Set time limits, browser locking, and track user performance.</p>
+              <a href="{% url 'quiz_management' %}" class="btn btn-success mt-auto">Manage Quizzes</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skills Management Card -->
+        <div class="col-lg-4 col-md-6">
+          <div class="card h-100 shadow-sm border-0">
+            <div class="card-body d-flex flex-column">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center">
+                  <i class="fas fa-cogs text-info me-3" style="font-size: 1.5rem;"></i>
+                  <h5 class="card-title mb-0">Skills Management</h5>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary pin-btn" 
+                        data-url-name="upskilling" 
+                        data-title="Skills Management" 
+                        data-icon="fas fa-cogs" 
+                        data-description="Add, edit, and delete upskilling courses and skill pathways. Manage course content, prerequisites, and learning objectives."
+                        title="{% if 'upskilling' in pinned_url_names %}Unpin from navigation{% else %}Pin to navigation{% endif %}">
+                  <i class="fas {% if 'upskilling' in pinned_url_names %}fa-thumb-tack text-success{% else %}fa-thumbtack{% endif %}"></i>
+                </button>
+              </div>
+              <p class="card-text text-muted mb-3">Add, edit, and delete upskilling courses and skill pathways. Manage course content, prerequisites, and learning objectives.</p>
+              <a href="{% url 'upskilling' %}" class="btn btn-info mt-auto">Manage Skills</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Enhanced Statistics Section -->
+    <div class="enhanced-stats-section mt-5">
+      <h3 class="mb-4">
+        <i class="fas fa-chart-bar me-2"></i>
+        Dashboard Analytics & Statistics
+      </h3>
+      
+      <!-- Key Metrics Cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+          <div class="card bg-primary text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">New Users This Week</h6>
+                  <h2 class="mb-0">{{ users_last_week }}</h2>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-user-plus fa-2x opacity-50"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+          <div class="card bg-success text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Users with Preferences</h6>
+                  <h2 class="mb-0">{{ users_with_preferences }}</h2>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+          <div class="card bg-warning text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Pending Assignment</h6>
+                  <h2 class="mb-0">{{ users_pending_assignment }}</h2>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-clock fa-2x opacity-50"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+          <div class="card bg-info text-white">
+            <div class="card-body">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">Active Users (7 days)</h6>
+                  <h2 class="mb-0">{{ active_users_week }}</h2>
+                </div>
+                <div class="align-self-center">
+                  <i class="fas fa-users fa-2x opacity-50"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Activity Metrics Cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+          <div class="card border-primary">
+            <div class="card-body text-center">
+              <i class="fas fa-brain text-primary fa-2x mb-2"></i>
+              <h6 class="card-title">Quiz Completions (Week)</h6>
+              <h3 class="text-primary">{{ quiz_completions_week }}</h3>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+          <div class="card border-success">
+            <div class="card-body text-center">
+              <i class="fas fa-percentage text-success fa-2x mb-2"></i>
+              <h6 class="card-title">Quiz Pass Rate</h6>
+              <h3 class="text-success">{{ quiz_pass_percentage }}%</h3>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+          <div class="card border-warning">
+            <div class="card-body text-center">
+              <i class="fas fa-trophy text-warning fa-2x mb-2"></i>
+              <h6 class="card-title">Challenges (Week)</h6>
+              <h3 class="text-warning">{{ challenge_completions_week }}</h3>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6">
+          <div class="card border-info">
+            <div class="card-body text-center">
+              <i class="fas fa-blog text-info fa-2x mb-2"></i>
+              <h6 class="card-title">New Blogs (Week)</h6>
+              <h3 class="text-info">{{ blogs_last_week }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Charts Row -->
+      <div class="row g-4">
+        <!-- Project Members Distribution -->
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="fas fa-project-diagram me-2"></i>
+                Project Team Distribution
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas id="projectMembersChart" height="300"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- User Activity Overview -->
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="fas fa-chart-pie me-2"></i>
+                User Status Overview
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas id="userStatusChart" height="300"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Weekly Activity Trend -->
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="fas fa-chart-line me-2"></i>
+                Weekly Activity Summary
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas id="weeklyActivityChart" height="300"></canvas>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Engagement Metrics -->
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h5 class="mb-0">
+                <i class="fas fa-chart-bar me-2"></i>
+                Platform Engagement
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas id="engagementChart" height="300"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Include Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+      .pin-btn {
+        border: none !important;
+        background: none !important;
+        padding: 0.25rem 0.5rem !important;
+        border-radius: 50% !important;
+        transition: all 0.2s ease;
+        position: relative;
+      }
+      
+      .pin-btn:hover {
+        background-color: rgba(0,0,0,0.1) !important;
+        transform: scale(1.1);
+      }
+      
+      .pin-btn.pinned {
+        color: #28a745 !important;
+        background-color: rgba(40, 167, 69, 0.1) !important;
+      }
+      
+      .pin-btn i.text-success {
+        color: #28a745 !important;
+        text-shadow: 0 0 3px rgba(40, 167, 69, 0.5);
+      }
+    </style>
+
+    <script>
+      // const totalChallenges = parseInt(document.getElementById("total_challenges").textContent.trim()) || 0;
+
+      // Feedback Chart
+      const feedback_labels = JSON.parse(document.getElementById('feedback_labels').textContent);
+      const feedback_data = JSON.parse(document.getElementById('feedback_data').textContent);
+
+      new Chart(document.getElementById('experienceChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: feedback_labels,
+          datasets: [{
+            label: 'Number of feedbacks',
+            data: feedback_data,
+            backgroundColor: '#4CAF50',
+            borderRadius: 5
+          }]
+        },
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Numbers of feedback receive in this week'
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              stepSize: 1,
+              callback: function (value) {
+                if (Number.isInteger(value)) {
+                  return value;
+                }
+              }
             }
           }
         }
-      }
-    }
-  });
+      });
 
-  // Questions per Category Chart
-  // prepare data
-  const network = parseInt(document.getElementById('count_network').textContent.trim()) || 0;
-  const web = parseInt(document.getElementById('count_web').textContent.trim()) || 0;
-  const crypto = parseInt(document.getElementById('count_crypto').textContent.trim()) || 0;
-  const general = parseInt(document.getElementById('count_general').textContent.trim()) || 0;
+      // Questions per Category Chart
+      // prepare data
+      const network = parseInt(document.getElementById('count_network').textContent.trim()) || 0;
+      const web = parseInt(document.getElementById('count_web').textContent.trim()) || 0;
+      const crypto = parseInt(document.getElementById('count_crypto').textContent.trim()) || 0;
+      const general = parseInt(document.getElementById('count_general').textContent.trim()) || 0;
 
-  // console.log(totalChallenges )
-  // const chartData = [{totalChallenges}, 15, 7, 12];
-  new Chart(document.getElementById('questionsChart').getContext('2d'), {
-    type: 'pie',
-    data: {
-      labels: ['Network Security', 'Web Application', 'Cryptography', 'General Knowledge'], // Example categories
-      datasets: [{
-        label: 'Total Questions',
-        data: [network, web, crypto, general],
-        backgroundColor: ['#2196F3', '#FFC107', '#4CAF50', '#E91E63'],
-        borderRadius: 5
-      }]
-    },
-    options: {
-      plugins: {
-        title: {
-          display: true,
-          text: 'Questions per Challenge Category'
-        }
-      }
-    }
-  });
-
-  // User Registrations Over Time - Line Chart
-  const user_labels = parseInt(document.getElementById('user_labels').textContent); 
-  const user_registration = parseInt(document.getElementById('user_registration').textContent);    // Use the 'data' context passed from the view
-  
-  new Chart(document.getElementById('userRegistrationsChart').getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: user_labels, // Use the labels for the x-axis
-      datasets: [{
-        label: 'User Registrations',
-        data: user_registration,     // Use the data for the y-axis
-        fill: false,
-        borderColor: 'rgb(75, 192, 192)',
-        tension: 0.2
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        title: {
-          display: true,
-          text: 'User Registrations Over Time'
-        }
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Date'
-          }
+      // console.log(totalChallenges )
+      // const chartData = [{totalChallenges}, 15, 7, 12];
+      new Chart(document.getElementById('questionsChart').getContext('2d'), {
+        type: 'pie',
+        data: {
+          labels: ['Network Security', 'Web Application', 'Cryptography', 'General Knowledge'], // Example categories
+          datasets: [{
+            label: 'Total Questions',
+            data: [network, web, crypto, general],
+            backgroundColor: ['#2196F3', '#FFC107', '#4CAF50', '#E91E63'],
+            borderRadius: 5
+          }]
         },
-        y: {
-          title: {
-            display: true,
-            text: 'Users'
-          },
-          beginAtZero: true
+        options: {
+          plugins: {
+            title: {
+              display: true,
+              text: 'Questions per Challenge Category'
+            }
+          }
         }
-      }
-    }
-  });
-</script>
+      });
 
+      // User Registrations Over Time - Line Chart
+      const user_labels = parseInt(document.getElementById('user_labels').textContent);
+      const user_registration = parseInt(document.getElementById('user_registration').textContent);    // Use the 'data' context passed from the view
+
+      new Chart(document.getElementById('userRegistrationsChart').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: user_labels, // Use the labels for the x-axis
+          datasets: [{
+            label: 'User Registrations',
+            data: user_registration,     // Use the data for the y-axis
+            fill: false,
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            title: {
+              display: true,
+              text: 'User Registrations Over Time'
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Users'
+              },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    </script>
+
+    <!-- Enhanced Statistics Charts -->
+    <script>
+      // Project Members Distribution Chart
+      const projectNames = {{ project_names|safe }};
+      const projectMemberCounts = {{ project_member_counts|safe }};
+      
+      if (projectNames.length > 0) {
+        new Chart(document.getElementById('projectMembersChart').getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: projectNames,
+            datasets: [{
+              data: projectMemberCounts,
+              backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+                '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+              ],
+              borderWidth: 2,
+              borderColor: '#fff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom'
+              },
+              title: {
+                display: true,
+                text: 'Team Members per Project'
+              }
+            }
+          }
+        });
+      }
+      
+      // User Status Overview Chart
+      new Chart(document.getElementById('userStatusChart').getContext('2d'), {
+        type: 'pie',
+        data: {
+          labels: ['With Preferences', 'Pending Assignment', 'Active (7 days)', 'New (7 days)'],
+          datasets: [{
+            data: [
+              {{ users_with_preferences }}, 
+              {{ users_pending_assignment }}, 
+              {{ active_users_week }}, 
+              {{ users_last_week }}
+            ],
+            backgroundColor: ['#28a745', '#ffc107', '#17a2b8', '#007bff'],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            },
+            title: {
+              display: true,
+              text: 'User Status Distribution'
+            }
+          }
+        }
+      });
+      
+      // Weekly Activity Summary Chart
+      new Chart(document.getElementById('weeklyActivityChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['New Users', 'Quiz Completions', 'Challenge Completions', 'New Blogs'],
+          datasets: [{
+            label: 'This Week',
+            data: [
+              {{ users_last_week }}, 
+              {{ quiz_completions_week }}, 
+              {{ challenge_completions_week }}, 
+              {{ blogs_last_week }}
+            ],
+            backgroundColor: ['#007bff', '#28a745', '#ffc107', '#17a2b8'],
+            borderColor: ['#0056b3', '#1e7e34', '#d39e00', '#117a8b'],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            title: {
+              display: true,
+              text: 'Weekly Platform Activity'
+            }
+          }
+        }
+      });
+      
+      // Platform Engagement Chart
+      new Chart(document.getElementById('engagementChart').getContext('2d'), {
+        type: 'radar',
+        data: {
+          labels: ['User Growth', 'Quiz Performance', 'Challenge Activity', 'Content Creation', 'Project Participation'],
+          datasets: [{
+            label: 'Engagement Score',
+            data: [
+              Math.min({{ users_last_week }} * 10, 100),
+              {{ quiz_pass_percentage }},
+              Math.min({{ challenge_completions_week }} * 5, 100),
+              Math.min({{ blogs_last_week }} * 20, 100),
+              Math.min(({{ total_users }} - {{ users_pending_assignment }}) / {{ total_users }} * 100, 100)
+            ],
+            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 2,
+            pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+            pointBorderColor: '#fff',
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {
+                stepSize: 20
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            title: {
+              display: true,
+              text: 'Platform Engagement Metrics'
+            }
+          }
+        }
+      });
+    </script>
+
+    <!-- Pin/Unpin JavaScript -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const pinBtns = document.querySelectorAll('.pin-btn');
+        
+        // Handle main pin buttons
+        pinBtns.forEach(btn => {
+          btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const urlName = this.dataset.urlName;
+            const title = this.dataset.title;
+            const icon = this.dataset.icon;
+            const description = this.dataset.description;
+            const isPinned = this.classList.contains('pinned') || this.querySelector('i').classList.contains('text-success');
+            
+            const url = isPinned ? '{% url "unpin_nav_link" %}' : '{% url "pin_nav_link" %}';
+            const method = 'POST';
+            
+            fetch(url, {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+              },
+              body: JSON.stringify({
+                url_name: urlName,
+                title: title,
+                icon: icon,
+                description: description
+              })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // Toggle pin state
+                const iconEl = this.querySelector('i');
+                if (isPinned) {
+                  // Unpinned
+                  this.classList.remove('pinned');
+                  iconEl.classList.remove('text-success');
+                  iconEl.classList.remove('fa-thumb-tack');
+                  iconEl.classList.add('fa-thumbtack');
+                  this.title = 'Pin to navigation';
+                } else {
+                  // Pinned
+                  this.classList.add('pinned');
+                  iconEl.classList.add('text-success');
+                  iconEl.classList.remove('fa-thumbtack');
+                  iconEl.classList.add('fa-thumb-tack');
+                  this.title = 'Unpin from navigation';
+                }
+                
+                // Show success message
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+                alertDiv.innerHTML = `
+                  ${data.message}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(alertDiv);
+                
+                // Auto-remove after 3 seconds
+                setTimeout(() => {
+                  if (alertDiv.parentNode) alertDiv.parentNode.removeChild(alertDiv);
+                }, 3000);
+              } else {
+                alert('Error: ' + data.message);
+              }
+            })
+            .catch(error => {
+              console.error('Error:', error);
+              alert('An error occurred. Please try again.');
+            });
+          });
+        });
+      });
+    </script>
+
+  </div>
+</section>
 {% endblock %}

@@ -81,7 +81,19 @@ class Command(BaseCommand):
         """Create various types of users"""
         users = []
         
-        # Create superuser
+        # Create primary superuser with specific credentials
+        if not User.objects.filter(email='s215076784@deakin.edu.au').exists():
+            superuser = User.objects.create_superuser(
+                email='s215076784@deakin.edu.au',
+                password='1234',
+                first_name='Admin',
+                last_name='User',
+                is_verified=True
+            )
+            users.append(superuser)
+            self.stdout.write(f'Created superuser: s215076784@deakin.edu.au')
+        
+        # Create backup superuser
         if not User.objects.filter(email='admin@deakin.edu.au').exists():
             superuser = User.objects.create_superuser(
                 email='admin@deakin.edu.au',
@@ -91,7 +103,7 @@ class Command(BaseCommand):
                 is_verified=True
             )
             users.append(superuser)
-            self.stdout.write(f'Created superuser: admin@deakin.edu.au')
+            self.stdout.write(f'Created backup superuser: admin@deakin.edu.au')
         
         # Create staff users
         for i in range(3):

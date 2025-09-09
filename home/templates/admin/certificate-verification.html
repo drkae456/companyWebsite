@@ -91,6 +91,15 @@
             <h2 class="mb-3">
                 <i class="fas fa-certificate me-2" style="color: #ffcd11;"></i>Certificate Verification
             </h2>
+            
+            {% if is_project_restricted %}
+            <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Project-Based View:</strong> You are viewing certificate verification for users in your assigned project(s): 
+                {% for project in accessible_projects %}{{ project.title }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            </div>
+            {% endif %}
+            
             <div class="d-flex align-items-center gap-3 mb-3">
                 <span class="badge status-pending">
                     {{ pending_count }} Pending

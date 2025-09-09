@@ -1,0 +1,328 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    .job-management {
+        margin: 2rem 0;
+        min-height: 70vh;
+    }
+
+    .admin-header {
+        background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%);
+        color: #1c2540;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(255, 205, 17, 0.4);
+    }
+
+    .admin-header h1 {
+        color: #1c2540;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+    }
+
+    .admin-header p {
+        color: rgba(28, 37, 64, 0.8);
+        margin-bottom: 0;
+    }
+
+    .stats-row {
+        background: linear-gradient(87deg, #ebf4f6 0%, #f9fafb 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 2px 8px rgba(36, 46, 76, 0.1);
+    }
+
+    .stat-card {
+        text-align: center;
+        padding: 1rem;
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #242e4c;
+    }
+
+    .stat-label {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+
+    .filter-section {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+
+    .job-card {
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .job-card:hover {
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .job-title {
+        color: #242e4c;
+        font-weight: 600;
+        font-size: 1.3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .job-meta {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .job-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .badge-status-active {
+        background: linear-gradient(87deg, #3aaf85 0%, #2ebb88 100%);
+        color: white;
+    }
+
+    .badge-status-archived {
+        background: linear-gradient(87deg, #6b7280 0%, #4b5563 100%);
+        color: white;
+    }
+
+    .badge-status-draft {
+        background: linear-gradient(87deg, #ffc107 0%, #ffcd11 100%);
+        color: #1c2540;
+    }
+
+    .job-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-custom {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        border: none;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-edit {
+        background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%);
+        color: white;
+    }
+
+    .btn-archive {
+        background: linear-gradient(87deg, #6b7280 0%, #4b5563 100%);
+        color: white;
+    }
+
+    .btn-delete {
+        background: linear-gradient(87deg, #dc3545 0%, #e8293b 100%);
+        color: white;
+    }
+
+    .btn-create {
+        background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%);
+        color: #1c2540;
+        font-weight: bold;
+    }
+
+    .nav-buttons {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-top: 2rem;
+        text-align: center;
+    }
+</style>
+
+<div class="container mt-5">
+    <br><br><br>
+
+    <div class="job-management">
+        <!-- Admin Header -->
+        <div class="admin-header">
+            <h1>Job Management</h1>
+            <p>Manage job postings and review applications</p>
+        </div>
+
+        <!-- Statistics Row -->
+        <div class="stats-row">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ active_jobs }}</div>
+                        <div class="stat-label">Active Jobs</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ archived_jobs }}</div>
+                        <div class="stat-label">Archived Jobs</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ draft_jobs }}</div>
+                        <div class="stat-label">Draft Jobs</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number">{{ total_applications }}</div>
+                        <div class="stat-label">Total Applications</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Display Messages -->
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Filter and Create Section -->
+        <div class="filter-section">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <form method="get" class="d-flex align-items-center gap-3">
+                        <label for="status" class="form-label mb-0"><strong>Filter by Status:</strong></label>
+                        <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                            <option value="archived" {% if status_filter == 'archived' %}selected{% endif %}>Archived
+                            </option>
+                            <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
+                            <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                        </select>
+                    </form>
+                </div>
+                <div class="col-md-6 text-end">
+                    <a href="{% url 'staff_create_job' %}" class="btn btn-custom btn-create btn-lg">
+                        <i class="fas fa-plus"></i> Create New Job
+                    </a>
+                    <a href="{% url 'staff_job_applications' %}" class="btn btn-custom btn-edit btn-lg ms-2">
+                        <i class="fas fa-file-alt"></i> View Applications
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Listings -->
+        {% if jobs %}
+        {% for job in jobs %}
+        <div class="job-card">
+            <div class="row">
+                <div class="col-md-8">
+                    <h3 class="job-title">{{ job.title }}</h3>
+                    <div class="job-meta">
+                        <span class="job-badge badge-status-{{ job.status }}">{{ job.get_status_display }}</span>
+                        <span class="text-muted">{{ job.get_job_type_display }}</span>
+                        <span class="text-muted">{{ job.location }}</span>
+                        <span class="text-muted">Posted: {{ job.posted_date|date:"M d, Y" }}</span>
+                        <span class="text-muted">Closes: {{ job.closing_date|date:"M d, Y" }}</span>
+                        {% if job.salary_range %}
+                        <span class="text-muted">{{ job.salary_range }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-muted">{{ job.description|striptags|truncatewords:20 }}</p>
+                    <small class="text-muted">Applications: {{ job.applications.count }}</small>
+                </div>
+                <div class="col-md-4">
+                    <div class="job-actions">
+                        <a href="{% url 'career-detail' job.id %}" class="btn btn-custom btn-edit btn-sm">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{% url 'staff_edit_job' job.id %}" class="btn btn-custom btn-edit btn-sm">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        {% if job.status == 'active' %}
+                        <form method="post" action="{% url 'staff_archive_job' job.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-custom btn-archive btn-sm"
+                                onclick="return confirm('Archive this job?')">
+                                <i class="fas fa-archive"></i> Archive
+                            </button>
+                        </form>
+                        {% endif %}
+                        <form method="post" action="{% url 'staff_delete_job' job.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-custom btn-delete btn-sm"
+                                onclick="return confirm('Are you sure you want to delete this job? This action cannot be undone.')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="alert text-center"
+            style="padding: 2rem; border-radius: 10px; background: linear-gradient(87deg, #f9fafb 0%, #e5e7eb 100%); border: 1px solid #d1d5db; color: #374151;">
+            <i class="fas fa-briefcase" style="font-size: 2rem; margin-bottom: 1rem; color: #242e4c;"></i>
+            <h4 style="color: #1f2937;">No jobs found</h4>
+            <p style="color: #6b7280;">No jobs found for the current filter. Try creating a new job or changing the
+                filter.</p>
+        </div>
+        {% endif %}
+
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-lg me-3"
+                style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; border: none;">
+                <i class="fas fa-tachometer-alt"></i> Back to Dashboard
+            </a>
+            <a href="{% url 'career-list' %}" class="btn btn-lg"
+                style="background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%); color: #1c2540; border: none;">
+                <i class="fas fa-briefcase"></i> View Public Jobs
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-hide alerts after 5 seconds
+    document.addEventListener('DOMContentLoaded', function () {
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(function (alert) {
+            setTimeout(function () {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 5000);
+        });
+    });
+</script>
+
+{% endblock %}

@@ -22,7 +22,7 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.views import LoginView, PasswordChangeView, PasswordResetView, PasswordResetConfirmView, PasswordResetDoneView, PasswordResetCompleteView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import logout
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Avg
 from django.http import JsonResponse
 from django.contrib import messages
 from django.views import View
@@ -35,7 +35,7 @@ from django.utils.html import strip_tags
 from django.utils.text import slugify
 from .models import Report
 
-from .models import Article, Student, Project, Contact, Smishingdetection_join_us, Projects_join_us, Webpage, Profile, User, Course, Skill, Experience, Job, JobAlert, UserBlogPage, SkillCertificate #Feedback 
+from .models import Article, Student, Project, Contact, Smishingdetection_join_us, Projects_join_us, Webpage, Profile, User, Course, Skill, Experience, Job, JobAlert, UserBlogPage, SkillCertificate, JobApplication, Announcement, Quiz, QuizQuestion, QuizAttempt, QuizAnswer #Feedback 
 
 
 from django.contrib.auth import get_user_model
@@ -49,7 +49,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.urls import reverse_lazy
 # from Website.settings import EMAIL_HOST_USER
 import random
-from .forms import UserUpdateForm, ProfileUpdateForm, ExperienceForm, JobApplicationForm, UserBlogPageForm, ChallengeForm
+from .forms import UserUpdateForm, ProfileUpdateForm, ExperienceForm, JobApplicationForm, JobForm, UserBlogPageForm, ChallengeForm
 
 from .forms import CaptchaForm
 
@@ -151,6 +151,34 @@ def get_login_redirect_url(user):
         # User hasn't completed join-us form, redirect to join-us page
         return '/join-us/'
 
+def get_staff_projects(user):
+    """Get projects assigned to a staff member"""
+    if user.is_superuser:
+        # Admin users can see everything
+        return Project.objects.all()
+    
+    try:
+        # Get the student record for this staff user
+        student = Student.objects.get(user=user)
+        if student.allocated:
+            # Staff member is assigned to a specific project
+            return Project.objects.filter(id=student.allocated.id)
+        else:
+            # Staff member not assigned to any project - no access
+            return Project.objects.none()
+    except Student.DoesNotExist:
+        # No student record - no project access
+        return Project.objects.none()
+
+def get_project_users(projects):
+    """Get all users assigned to the given projects"""
+    if not projects.exists():
+        return User.objects.none()
+    
+    # Get all students assigned to these projects
+    assigned_students = Student.objects.filter(allocated__in=projects)
+    user_ids = assigned_students.values_list('user_id', flat=True)
+    return User.objects.filter(id__in=user_ids)
 
 def index(request):
     recent_announcement = Announcement.objects.filter(isActive=True).order_by('-created_at').first()
@@ -1352,22 +1380,121 @@ def package_plan(request):
 @staff_member_required  
 def admin_dashboard(request):
     """
-    Admin dashboard view with session management.
+    Staff dashboard view accessible to both admin and staff users.
     """
-    # Verify user has admin privileges
+    from home.models import AdminNavLink
+    from django.utils import timezone
+    from django.db.models import Count, Q
+    from datetime import timedelta
+    import json
+    
+    # Verify user has staff/admin privileges
     if not request.user.is_admin_user():
-        messages.error(request, 'Access denied. Admin privileges required.')
+        messages.error(request, 'Access denied. Staff privileges required.')
         return redirect('login')
 
-    # Check if this is a valid admin session
+    # Check if this is a valid admin session OR regular staff user
     is_admin_session = request.session.get('is_admin_session', False)
-    if not is_admin_session:
-        messages.warning(request, 'Please log in through the admin portal.')
-        return redirect('admin_login')
+    if not is_admin_session and not request.user.is_authenticated:
+        messages.warning(request, 'Please log in to access the staff dashboard.')
+        return redirect('login')
+
+    # Get currently pinned links
+    pinned_links = AdminNavLink.objects.filter(is_active=True)
+    pinned_url_names = set(pinned_links.values_list('url_name', flat=True))
+
+    # Calculate statistics
+    now = timezone.now()
+    week_ago = now - timedelta(days=7)
+    
+    # Basic stats
+    total_users = User.objects.count()
+    users_last_week = User.objects.filter(created_at__gte=week_ago).count()
+    users_with_preferences = User.objects.exclude(
+        Q(upskilling_progress__isnull=True) | Q(upskilling_progress={})
+    ).count()
+    
+    # Project stats
+    try:
+        project_stats = Project.objects.annotate(
+            member_count=Count('members')
+        ).values('name', 'member_count')
+        project_names = [p['name'] for p in project_stats]
+        project_member_counts = [p['member_count'] for p in project_stats]
+    except:
+        project_names = []
+        project_member_counts = []
+    
+    # Users pending assignment (users not in any project)
+    try:
+        users_in_projects = ProjectMembership.objects.values_list('user_id', flat=True).distinct()
+        users_pending_assignment = User.objects.exclude(id__in=users_in_projects).count()
+    except:
+        users_pending_assignment = 0
+    
+    # Quiz completion stats
+    try:
+        quiz_completions_week = QuizAttempt.objects.filter(
+            completed_at__gte=week_ago,
+            completed_at__isnull=False
+        ).count()
+        quiz_pass_rate = QuizAttempt.objects.filter(
+            completed_at__isnull=False,
+            passed=True
+        ).count()
+        total_quiz_attempts = QuizAttempt.objects.filter(completed_at__isnull=False).count()
+        quiz_pass_percentage = (quiz_pass_rate / total_quiz_attempts * 100) if total_quiz_attempts > 0 else 0
+    except:
+        quiz_completions_week = 0
+        quiz_pass_percentage = 0
+    
+    # Challenge completion stats
+    try:
+        challenge_completions_week = UserChallenge.objects.filter(
+            completed=True,
+            completed_at__gte=week_ago
+        ).count()
+        total_challenge_completions = UserChallenge.objects.filter(completed=True).count()
+    except:
+        challenge_completions_week = 0
+        total_challenge_completions = 0
+    
+    # Blog stats
+    try:
+        blogs_last_week = BlogPost.objects.filter(created_at__gte=week_ago).count()
+        pending_blog_approvals = BlogPost.objects.filter(approved=False).count()
+    except:
+        blogs_last_week = 0
+        pending_blog_approvals = 0
+    
+    # Active users (users who logged in last week)
+    try:
+        active_users_week = User.objects.filter(last_activity__gte=week_ago).count()
+    except:
+        active_users_week = 0
 
     return render(request, 'admin/dashboard.html', {
         'user': request.user,
-        'admin_session_active': True
+        'admin_session_active': True,
+        'pinned_url_names': pinned_url_names,
+        # Basic stats
+        'total_users': total_users,
+        'users_last_week': users_last_week,
+        'users_with_preferences': users_with_preferences,
+        'users_pending_assignment': users_pending_assignment,
+        'active_users_week': active_users_week,
+        # Project stats
+        'project_names': json.dumps(project_names),
+        'project_member_counts': json.dumps(project_member_counts),
+        # Quiz stats
+        'quiz_completions_week': quiz_completions_week,
+        'quiz_pass_percentage': round(quiz_pass_percentage, 1),
+        # Challenge stats
+        'challenge_completions_week': challenge_completions_week,
+        'total_challenge_completions': total_challenge_completions,
+        # Blog stats
+        'blogs_last_week': blogs_last_week,
+        'pending_blog_approvals': pending_blog_approvals,
     })
 
 
@@ -1403,12 +1530,20 @@ import base64
 
 def blogpage(request):
     if request.method == 'POST':
+        # Require authentication for blog submission
+        if not request.user.is_authenticated:
+            return redirect('login')
+            
         form = UserBlogPageForm(request.POST, request.FILES)
         if form.is_valid():
             blog = form.save(commit=False)
 
-            # Ensure 'isShow' is set to False by default
-            blog.isShow = False  # Default value is False, no need to check
+            # Assign the current user to the blog post
+            blog.user = request.user
+            
+            # Set initial status and backwards compatibility
+            blog.status = 'pending'
+            blog.isShow = False
 
             uploaded_file = request.FILES.get('file')
             if uploaded_file:
@@ -1419,7 +1554,17 @@ def blogpage(request):
     else:
         form = UserBlogPageForm()
 
-    blogpages = UserBlogPage.objects.all().order_by('-created_at')[:10]
+    # Filter blog posts based on user permissions
+    if request.user.is_staff:
+        # Staff and admin see all blog submissions with different statuses
+        blogpages = UserBlogPage.objects.all().order_by('-created_at')[:20]
+    elif request.user.is_authenticated:
+        # Regular users only see their own submissions
+        blogpages = UserBlogPage.objects.filter(user=request.user).order_by('-created_at')[:10]
+    else:
+        # Anonymous users see no submissions, only published blogs
+        blogpages = UserBlogPage.objects.filter(status='approved', isShow=True).order_by('-created_at')[:10]
+    
     return render(request, 'pages/blogpage.html', {'form': form, 'blogpages': blogpages})
 
 
@@ -1458,23 +1603,44 @@ def delete_blogpage(request, id):
     blogpage.delete()
     return redirect('blogpage')
 
+@staff_member_required
 def adminblogpage(request):
-    blogpages = UserBlogPage.objects.all().order_by('-created_at')
-    return render(request, 'pages/adminblogpage.html', {'blogpages': blogpages})
+    # Get projects accessible to this staff member
+    accessible_projects = get_staff_projects(request.user)
+    
+    if request.user.is_superuser:
+        # Admin can see all blog pages
+        blogpages = UserBlogPage.objects.all().order_by('-created_at')
+    elif accessible_projects.exists():
+        # Staff member can only see blog pages from users in their project(s)
+        project_users = get_project_users(accessible_projects)
+        blogpages = UserBlogPage.objects.filter(user__in=project_users).order_by('-created_at')
+    else:
+        # Staff member has no project access
+        blogpages = UserBlogPage.objects.none()
+    
+    return render(request, 'pages/adminblogpage.html', {
+        'blogpages': blogpages,
+        'accessible_projects': accessible_projects,
+        'is_project_restricted': not request.user.is_superuser
+    })
 
 def approve_blogpage(request, id):
     blog = get_object_or_404(UserBlogPage, id=id)
-    blog.isShow = True
+    blog.status = 'approved'
+    blog.isShow = True  # For backwards compatibility
     blog.save()
     return redirect('adminblogpage')
 
 def reject_blogpage(request, id):
     blog = get_object_or_404(UserBlogPage, id=id)
-    blog.delete()
+    blog.status = 'rejected'
+    blog.isShow = False
+    blog.save()
     return redirect('adminblogpage')
 
 def publishedblog(request):
-    blogpages = UserBlogPage.objects.filter(isShow=True).order_by('-created_at')
+    blogpages = UserBlogPage.objects.filter(status='approved', isShow=True).order_by('-created_at')
     return render(request, 'pages/publishedblog.html', {'blogpages': blogpages})
 
 def report_blog(request):
@@ -2246,19 +2412,9 @@ def submit_answer(request, challenge_id):
             user_challenge.completed = True
             user_challenge.score = challenge.points
             user_challenge.save()
-            # Calculate total points
-            total_points = UserChallenge.objects.filter(
-                user=request.user,
-                challenge__category=challenge.category
-            ).aggregate(Sum('score'))['score__sum'] or 0
-
-            # Update leaderboard
-            leaderboard_entry, created = LeaderBoardTable.objects.get_or_create(
-                user=request.user,
-                category=challenge.category
-            )
-            leaderboard_entry.total_points = total_points
-            leaderboard_entry.save()
+            
+            # Update leaderboard with combined challenge and quiz scores
+            update_leaderboard_with_quiz_score(request.user, challenge.category)
 
         return JsonResponse({
             'is_correct': is_correct,
@@ -2290,7 +2446,7 @@ def blog_list(request):
     return JsonResponse({'posts_html': posts_html, 'has_next': page_obj.has_next()})
 
 def list_careers(request):
-    jobs = Job.objects.filter(closing_date__gte=timezone.now()).order_by('closing_date')
+    jobs = Job.objects.filter(closing_date__gte=timezone.now(), status='active').order_by('closing_date')
 
     search = request.GET.get('search', '')
     job_type = request.GET.get('job_type', '')
@@ -2374,6 +2530,11 @@ def career_application(request,id):
             # return redirect('career_list')
     else:
         form = JobApplicationForm()
+        # Prefill form data if user is logged in
+        if request.user.is_authenticated:
+            form.fields['name'].initial = f"{request.user.first_name} {request.user.last_name}".strip()
+            form.fields['email'].initial = request.user.email
+    
     context = {
         "form":form,
         "job":job,
@@ -2384,6 +2545,120 @@ def career_application(request,id):
 def graduate_program(request):
     """View for the Graduate Program roadmap page"""
     return render(request, "careers/graduate-program.html")
+
+# Staff Job Management Views
+@staff_member_required
+def staff_job_management(request):
+    """Staff view for managing job postings"""
+    status_filter = request.GET.get('status', 'active')
+    
+    if status_filter == 'all':
+        jobs = Job.objects.all().order_by('-posted_date')
+    else:
+        jobs = Job.objects.filter(status=status_filter).order_by('-posted_date')
+    
+    context = {
+        'jobs': jobs,
+        'status_filter': status_filter,
+        'total_applications': JobApplication.objects.count(),
+        'active_jobs': Job.objects.filter(status='active').count(),
+        'archived_jobs': Job.objects.filter(status='archived').count(),
+        'draft_jobs': Job.objects.filter(status='draft').count(),
+    }
+    return render(request, 'careers/staff-job-management.html', context)
+
+@staff_member_required
+def staff_create_job(request):
+    """Create a new job posting"""
+    if request.method == 'POST':
+        form = JobForm(request.POST)
+        if form.is_valid():
+            job = form.save()
+            messages.success(request, f'Job "{job.title}" created successfully!')
+            return redirect('staff_job_management')
+    else:
+        form = JobForm()
+    
+    context = {
+        'form': form,
+        'action': 'Create'
+    }
+    return render(request, 'careers/staff-job-form.html', context)
+
+@staff_member_required
+def staff_edit_job(request, job_id):
+    """Edit an existing job posting"""
+    job = get_object_or_404(Job, id=job_id)
+    
+    if request.method == 'POST':
+        form = JobForm(request.POST, instance=job)
+        if form.is_valid():
+            job = form.save()
+            messages.success(request, f'Job "{job.title}" updated successfully!')
+            return redirect('staff_job_management')
+    else:
+        form = JobForm(instance=job)
+    
+    context = {
+        'form': form,
+        'job': job,
+        'action': 'Edit'
+    }
+    return render(request, 'careers/staff-job-form.html', context)
+
+@staff_member_required
+def staff_archive_job(request, job_id):
+    """Archive a job posting"""
+    job = get_object_or_404(Job, id=job_id)
+    
+    if request.method == 'POST':
+        job.status = 'archived'
+        job.save()
+        messages.success(request, f'Job "{job.title}" archived successfully!')
+    
+    return redirect('staff_job_management')
+
+@staff_member_required
+def staff_delete_job(request, job_id):
+    """Delete a job posting"""
+    job = get_object_or_404(Job, id=job_id)
+    
+    if request.method == 'POST':
+        job_title = job.title
+        job.delete()
+        messages.success(request, f'Job "{job_title}" deleted successfully!')
+    
+    return redirect('staff_job_management')
+
+@staff_member_required
+def staff_job_applications(request):
+    """View and manage job applications"""
+    job_filter = request.GET.get('job', '')
+    
+    applications = JobApplication.objects.select_related('job').order_by('-applied_date')
+    
+    if job_filter:
+        applications = applications.filter(job_id=job_filter)
+    
+    jobs = Job.objects.all().order_by('title')
+    
+    context = {
+        'applications': applications,
+        'jobs': jobs,
+        'job_filter': job_filter,
+        'total_applications': applications.count(),
+    }
+    return render(request, 'careers/staff-applications.html', context)
+
+@staff_member_required
+def staff_application_detail(request, application_id):
+    """View detailed application information"""
+    application = get_object_or_404(JobApplication, id=application_id)
+    
+    context = {
+        'application': application,
+    }
+    return render(request, 'careers/staff-application-detail.html', context)
 
 def graduate_program_detailed(request):
     """View for the detailed Graduate Program page with benefits and application process"""
@@ -2433,8 +2708,17 @@ def leaderboard(request):
     #Select category to display leaderboard table
     selected_category = request.GET.get('category', '')
     categories = LeaderBoardTable.objects.values_list('category', flat=True).distinct()
+    
+    # Check if user is staff/admin to show all entries
+    is_staff_user = request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
+    
     if selected_category:
-        leaderboard_entry = LeaderBoardTable.objects.filter(category=selected_category).order_by('-total_points')[:10]
+        if is_staff_user:
+            # Show all entries for staff users
+            leaderboard_entry = LeaderBoardTable.objects.filter(category=selected_category).order_by('-total_points')
+        else:
+            # Show only top 10 for regular users
+            leaderboard_entry = LeaderBoardTable.objects.filter(category=selected_category).order_by('-total_points')[:10]
     else:
         leaderboard_entry = LeaderBoardTable.objects.none()  # Show nothing by default
 
@@ -2442,30 +2726,174 @@ def leaderboard(request):
         'entries': leaderboard_entry,
         'categories': categories,
         'selected_category': selected_category,
-
+        'is_staff_user': is_staff_user,
     }
     return render(request, 'pages/leaderboard.html', context)
 
+def update_leaderboard_with_quiz_score(user, category):
+    """Update leaderboard with combined challenge and quiz scores for a category"""
+    # Calculate challenge points for this category
+    challenge_points = UserChallenge.objects.filter(
+        user=user,
+        completed=True,
+        challenge__category=category
+    ).aggregate(Sum('score'))['score__sum'] or 0
+    
+    # Calculate quiz points for this category (only passed quizzes)
+    quiz_points = QuizAttempt.objects.filter(
+        user=user,
+        quiz__category=category,
+        passed=True
+    ).aggregate(Sum('score'))['score__sum'] or 0
+    
+    # Total combined points
+    total_points = challenge_points + quiz_points
+    
+    if total_points > 0:
+        # Update or create leaderboard entry
+        leaderboard_entry, created = LeaderBoardTable.objects.get_or_create(
+            user=user,
+            category=category
+        )
+        leaderboard_entry.total_points = total_points
+        leaderboard_entry.save()
+
 def leaderboard_update():
+    """Update entire leaderboard with combined challenge and quiz scores"""
     LeaderBoardTable.objects.all().delete()
+    
+    # Get all unique categories from challenges and quizzes
+    from django.db.models import Q
+    challenge_categories = set(UserChallenge.objects.filter(completed=True).values_list('challenge__category', flat=True))
+    quiz_categories = set(QuizAttempt.objects.filter(passed=True).values_list('quiz__category', flat=True))
+    all_categories = challenge_categories.union(quiz_categories)
+    
     users = User.objects.all()
     for user in users:
-        challenges_category = (UserChallenge.objects.filter(user=user, completed=True).values('category_challenges').annotate(total_points=Sum('score')))
+        for category in all_categories:
+            update_leaderboard_with_quiz_score(user, category)
 
-        for categories in challenges_category:
-            category = categories['category_challenges']
-            total_points = categories['total_points'] or 0
+@staff_member_required
+def staff_leaderboard_management(request):
+    """Staff view for managing leaderboard entries"""
+    selected_category = request.GET.get('category', '')
+    categories = LeaderBoardTable.objects.values_list('category', flat=True).distinct()
+    
+    if selected_category:
+        leaderboard_entries = LeaderBoardTable.objects.filter(category=selected_category).order_by('-total_points')
+    else:
+        leaderboard_entries = LeaderBoardTable.objects.none()
 
-            if total_points > 0:
-                LeaderBoardTable.objects.create(first_name=user.first_name, last_name=user.last_name, category=category, total_points=total_points)
+    # Get quiz attempts with violations for users with leaderboard entries
+    quiz_violations = {}
+    if leaderboard_entries:
+        user_emails = [entry.user.email for entry in leaderboard_entries if hasattr(entry, 'user')]
+        quiz_attempts = QuizAttempt.objects.filter(
+            user__email__in=user_emails,
+            violations_count__gt=0
+        ).select_related('user', 'quiz')
+        
+        for attempt in quiz_attempts:
+            user_email = attempt.user.email
+            if user_email not in quiz_violations:
+                quiz_violations[user_email] = []
+            quiz_violations[user_email].append({
+                'quiz_title': attempt.quiz.title,
+                'violations_count': attempt.violations_count,
+                'started_at': attempt.started_at,
+                'completed': bool(attempt.completed_at)
+            })
+
+    context = {
+        'entries': leaderboard_entries,
+        'categories': categories,
+        'selected_category': selected_category,
+        'quiz_violations': quiz_violations,
+    }
+    return render(request, 'admin/leaderboard-management.html', context)
+
+@staff_member_required
+def edit_leaderboard_entry(request, entry_id):
+    """Edit a leaderboard entry"""
+    entry = get_object_or_404(LeaderBoardTable, id=entry_id)
+    
+    if request.method == 'POST':
+        try:
+            new_points = int(request.POST.get('total_points', 0))
+            new_category = request.POST.get('category', '').strip()
+            
+            if new_points < 0:
+                messages.error(request, 'Points cannot be negative.')
+                return redirect('staff_leaderboard_management')
+                
+            if not new_category:
+                messages.error(request, 'Category cannot be empty.')
+                return redirect('staff_leaderboard_management')
+            
+            entry.total_points = new_points
+            entry.category = new_category
+            entry.save()
+            
+            messages.success(request, f'Successfully updated {entry.user.first_name} {entry.user.last_name}\'s entry.')
+            
+        except ValueError:
+            messages.error(request, 'Invalid points value.')
+        except Exception as e:
+            messages.error(request, f'Error updating entry: {str(e)}')
+    
+    return redirect('staff_leaderboard_management')
+
+@staff_member_required
+def delete_leaderboard_entry(request, entry_id):
+    """Delete a leaderboard entry"""
+    entry = get_object_or_404(LeaderBoardTable, id=entry_id)
+    
+    if request.method == 'POST':
+        user_name = f"{entry.user.first_name} {entry.user.last_name}"
+        category = entry.category
+        entry.delete()
+        messages.success(request, f'Successfully deleted {user_name}\'s entry from {category} category.')
+    
+    return redirect('staff_leaderboard_management')
 
 
 
 def cyber_quiz(request):
     """
-    View for the cybersecurity quiz page.
+    View for the cybersecurity quiz page - showing available quizzes.
     """
-    return render(request, 'pages/challenges/quiz.html')
+    # Get all active quizzes
+    quizzes = Quiz.objects.filter(is_active=True).order_by('-created_at')
+    
+    # Get user's quiz attempts and locks if logged in
+    user_attempts = []
+    user_quiz_locks = {}
+    if request.user.is_authenticated:
+        user_attempts = QuizAttempt.objects.filter(
+            user=request.user,
+            quiz__in=quizzes
+        ).select_related('quiz')
+        
+        # Get quiz-specific locks for this user
+        from home.models import QuizLock
+        quiz_locks = QuizLock.objects.filter(user=request.user, quiz__in=quizzes).select_related('quiz')
+        user_quiz_locks = {lock.quiz.id: lock for lock in quiz_locks}
+    
+    # Create a dictionary to track user's best attempts for each quiz
+    user_quiz_attempts = {}
+    for attempt in user_attempts:
+        quiz_id = attempt.quiz.id
+        if quiz_id not in user_quiz_attempts or attempt.percentage > user_quiz_attempts[quiz_id].percentage:
+            user_quiz_attempts[quiz_id] = attempt
+    
+    context = {
+        'quizzes': quizzes,
+        'user_quiz_attempts': user_quiz_attempts,
+        'user_quiz_locks': user_quiz_locks,
+        'total_quizzes': quizzes.count(),
+    }
+    
+    return render(request, 'pages/challenges/quiz.html', context)
 
 
 def comphrehensive_reports(request):
@@ -2877,6 +3305,85 @@ def user_management(request):
     return render(request, 'admin/user-management/assignment.html', context)
 
 @staff_member_required
+def unlock_user_quiz(request, user_id, quiz_id=None):
+    """Unlock a user from specific quiz restrictions"""
+    user = get_object_or_404(User, id=user_id)
+    
+    if request.method == 'POST':
+        from home.models import QuizLock
+        
+        if quiz_id:
+            # Unlock specific quiz
+            quiz = get_object_or_404(Quiz, id=quiz_id)
+            QuizLock.objects.filter(user=user, quiz=quiz).delete()
+            messages.success(request, f'Quiz access unlocked for {user.first_name} {user.last_name} for "{quiz.title}"')
+        else:
+            # Unlock all quizzes for user
+            deleted_count = QuizLock.objects.filter(user=user).delete()[0]
+            messages.success(request, f'All quiz locks removed for {user.first_name} {user.last_name} ({deleted_count} locks removed)')
+    
+    return redirect('user_management')
+
+@staff_member_required 
+def pin_nav_link(request):
+    """Pin a link to the admin navigation dropdown"""
+    if request.method == 'POST':
+        import json
+        from home.models import AdminNavLink
+        
+        data = json.loads(request.body)
+        title = data.get('title')
+        url_name = data.get('url_name')
+        icon = data.get('icon', 'fas fa-link')
+        description = data.get('description', '')
+        
+        # Check if already pinned
+        if AdminNavLink.objects.filter(url_name=url_name).exists():
+            return JsonResponse({'success': False, 'message': 'Link already pinned'})
+        
+        # Create new pinned link
+        nav_link = AdminNavLink.objects.create(
+            title=title,
+            url_name=url_name,
+            icon=icon,
+            description=description,
+            created_by=request.user,
+            order=AdminNavLink.objects.count()
+        )
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'"{title}" pinned to navigation',
+            'link_id': nav_link.id
+        })
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@staff_member_required
+def unpin_nav_link(request):
+    """Remove a link from the admin navigation dropdown"""
+    if request.method == 'POST':
+        import json
+        from home.models import AdminNavLink
+        
+        data = json.loads(request.body)
+        url_name = data.get('url_name')
+        
+        try:
+            nav_link = AdminNavLink.objects.get(url_name=url_name)
+            title = nav_link.title
+            nav_link.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'"{title}" removed from navigation'
+            })
+        except AdminNavLink.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Link not found'})
+    
+    return JsonResponse({'success': False, 'message': 'Invalid request method'})
+
+@staff_member_required
 @require_POST
 def assign_user_project(request):
     """Handle assigning a user to a project via AJAX."""
@@ -2958,8 +3465,10 @@ def update_user(request):
         # Update student fields
         if data.get('student_id'):
             student.id = data.get('student_id')
-        if data.get('year'):
-            student.year = data.get('year')
+        # Handle year field - allow None/null values
+        if 'year' in data:
+            year_value = data.get('year')
+            student.year = int(year_value) if year_value and str(year_value).strip() else None
         student.trimester = data.get('trimester', student.trimester)
         student.unit = data.get('unit', student.unit)
         student.course = data.get('course', student.course)
@@ -3178,8 +3687,8 @@ def bulk_update_student_info(request):
                     student.unit = unit
                 if trimester:
                     student.trimester = trimester
-                if year:
-                    student.year = int(year)
+                if year is not None:
+                    student.year = int(year) if year else None
                 
                 student.save()
                 success_count += 1
@@ -3197,6 +3706,47 @@ def bulk_update_student_info(request):
         else:
             return JsonResponse({'success': False, 'error': 'No students were updated. ' + '; '.join(errors)})
             
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@staff_member_required
+@require_POST
+def delete_user(request):
+    """Handle user deletion via AJAX."""
+    try:
+        data = json.loads(request.body)
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return JsonResponse({'success': False, 'error': 'User ID is required.'}, status=400)
+        
+        # Get the user
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'User not found.'}, status=404)
+        
+        # Prevent deletion of superusers
+        if user.is_superuser:
+            return JsonResponse({'success': False, 'error': 'Cannot delete admin users.'}, status=400)
+        
+        # Prevent deletion of the current user
+        if user.id == request.user.id:
+            return JsonResponse({'success': False, 'error': 'Cannot delete your own account.'}, status=400)
+        
+        # Store user info for success message
+        user_name = user.get_full_name() or user.email
+        
+        # Delete the user (this will cascade to related objects like Student)
+        user.delete()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'User "{user_name}" has been permanently deleted from the system.'
+        })
+        
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON data.'}, status=400)
     except Exception as e:
@@ -3592,14 +4142,27 @@ def download_certificate(request, certificate_id):
 
 
 @user_passes_test(lambda u: u.is_staff)
+@staff_member_required
 def certificate_verification_dashboard(request):
     """Admin dashboard for certificate verification"""
+    # Get projects accessible to this staff member
+    accessible_projects = get_staff_projects(request.user)
+    
     # Get filter parameters
     status_filter = request.GET.get('status', 'pending')
     provider_filter = request.GET.get('provider', '')
     
-    # Build queryset
-    certificates = SkillCertificate.objects.select_related('user', 'skill', 'verified_by')
+    # Build queryset based on user's project access
+    if request.user.is_superuser:
+        # Admin can see all certificates
+        certificates = SkillCertificate.objects.select_related('user', 'skill', 'verified_by')
+    elif accessible_projects.exists():
+        # Staff member can only see certificates from users in their project(s)
+        project_users = get_project_users(accessible_projects)
+        certificates = SkillCertificate.objects.filter(user__in=project_users).select_related('user', 'skill', 'verified_by')
+    else:
+        # Staff member has no project access
+        certificates = SkillCertificate.objects.none()
     
     if status_filter and status_filter != 'all':
         certificates = certificates.filter(status=status_filter)
@@ -3622,6 +4185,8 @@ def certificate_verification_dashboard(request):
         'rejected_count': rejected_count,
         'provider_choices': SkillCertificate.PROVIDER_CHOICES,
         'status_choices': SkillCertificate.STATUS_CHOICES,
+        'accessible_projects': accessible_projects,
+        'is_project_restricted': not request.user.is_superuser,
     }
     
     return render(request, 'admin/certificate-verification.html', context)
@@ -3753,12 +4318,30 @@ def edit_upskilling_course(request, course_id):
 
 
 @user_passes_test(lambda u: u.is_staff)
+@staff_member_required
 def course_approval_dashboard(request):
     """Admin dashboard for approving pending courses"""
-    pending_courses = Skill.objects.filter(visibility='pending').order_by('-created_at')
+    # Get projects accessible to this staff member
+    accessible_projects = get_staff_projects(request.user)
+    
+    if request.user.is_superuser:
+        # Admin can see all pending courses
+        pending_courses = Skill.objects.filter(visibility='pending').order_by('-created_at')
+    elif accessible_projects.exists():
+        # Staff member can only see courses from users in their project(s)
+        project_users = get_project_users(accessible_projects)
+        pending_courses = Skill.objects.filter(
+            visibility='pending',
+            created_by__in=project_users
+        ).order_by('-created_at')
+    else:
+        # Staff member has no project access
+        pending_courses = Skill.objects.none()
     
     return render(request, 'admin/course-approval.html', {
-        'pending_courses': pending_courses
+        'pending_courses': pending_courses,
+        'accessible_projects': accessible_projects,
+        'is_project_restricted': not request.user.is_superuser,
     })
 
 
@@ -3834,3 +4417,496 @@ def delete_account(request):
         messages.success(request, "Your account has been deleted.")
         return redirect('login') 
     return HttpResponseNotAllowed(['POST'])
+
+# Announcement Management Views
+@staff_member_required
+def announcement_management(request):
+    """Staff view for managing announcements"""
+    announcements = Announcement.objects.all().order_by('-created_at')
+    
+    context = {
+        'announcements': announcements,
+        'total_announcements': announcements.count(),
+        'active_announcements': announcements.filter(isActive=True).count(),
+        'inactive_announcements': announcements.filter(isActive=False).count(),
+    }
+    return render(request, 'admin/announcement-management.html', context)
+
+@staff_member_required
+def create_announcement(request):
+    """Create a new announcement"""
+    if request.method == 'POST':
+        message = request.POST.get('message', '').strip()
+        is_active = request.POST.get('isActive') == 'on'
+        
+        if message:
+            Announcement.objects.create(
+                message=message,
+                isActive=is_active
+            )
+            messages.success(request, 'Announcement created successfully!')
+        else:
+            messages.error(request, 'Message is required.')
+        
+        return redirect('announcement_management')
+    
+    return redirect('announcement_management')
+
+@staff_member_required
+def edit_announcement(request, announcement_id):
+    """Edit an existing announcement"""
+    announcement = get_object_or_404(Announcement, id=announcement_id)
+    
+    if request.method == 'POST':
+        message = request.POST.get('message', '').strip()
+        is_active = request.POST.get('isActive') == 'on'
+        
+        if message:
+            announcement.message = message
+            announcement.isActive = is_active
+            announcement.save()
+            messages.success(request, 'Announcement updated successfully!')
+        else:
+            messages.error(request, 'Message is required.')
+        
+        return redirect('announcement_management')
+    
+    return redirect('announcement_management')
+
+@staff_member_required
+def delete_announcement(request, announcement_id):
+    """Delete an announcement"""
+    if request.method == 'POST':
+        announcement = get_object_or_404(Announcement, id=announcement_id)
+        announcement.delete()
+        messages.success(request, 'Announcement deleted successfully!')
+    
+    return redirect('announcement_management')
+
+@staff_member_required
+def toggle_announcement(request, announcement_id):
+    """Toggle announcement active status"""
+    if request.method == 'POST':
+        announcement = get_object_or_404(Announcement, id=announcement_id)
+        announcement.isActive = not announcement.isActive
+        announcement.save()
+        status = 'activated' if announcement.isActive else 'deactivated'
+        messages.success(request, f'Announcement {status} successfully!')
+    
+    return redirect('announcement_management')
+
+# Quiz Management Views
+@staff_member_required
+def quiz_management(request):
+    """Staff view for managing quizzes"""
+    quizzes = Quiz.objects.all().order_by('-created_at')
+    
+    context = {
+        'quizzes': quizzes,
+        'total_quizzes': quizzes.count(),
+        'active_quizzes': quizzes.filter(is_active=True).count(),
+        'inactive_quizzes': quizzes.filter(is_active=False).count(),
+        'category_choices': Quiz.CATEGORY_CHOICES,
+    }
+    return render(request, 'admin/quiz-management.html', context)
+
+@staff_member_required
+def create_quiz(request):
+    """Create a new quiz"""
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        category = request.POST.get('category', '').strip()
+        difficulty = request.POST.get('difficulty', 'easy')
+        time_limit = int(request.POST.get('time_limit', 30))
+        passing_score = int(request.POST.get('passing_score', 70))
+        is_active = request.POST.get('is_active') == 'on'
+        randomize_questions = request.POST.get('randomize_questions') == 'on'
+        
+        if title and description and category:
+            quiz = Quiz.objects.create(
+                title=title,
+                description=description,
+                category=category,
+                difficulty=difficulty,
+                time_limit=time_limit,
+                passing_score=passing_score,
+                is_active=is_active,
+                randomize_questions=randomize_questions,
+                created_by=request.user
+            )
+            messages.success(request, f'Quiz "{title}" created successfully!')
+            return redirect('quiz_detail_management', quiz_id=quiz.id)
+        else:
+            messages.error(request, 'Title and description are required.')
+    
+    return redirect('quiz_management')
+
+@staff_member_required
+def quiz_detail_management(request, quiz_id):
+    """Detailed quiz management with questions"""
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    questions = quiz.questions.all().order_by('order')
+    
+    context = {
+        'quiz': quiz,
+        'questions': questions,
+        'total_questions': questions.count(),
+        'total_points': sum(q.points for q in questions),
+        'attempts_count': quiz.quizattempt_set.count(),
+        'avg_score': quiz.quizattempt_set.aggregate(avg_score=Avg('percentage'))['avg_score'] or 0,
+    }
+    return render(request, 'admin/quiz-detail-management.html', context)
+
+@staff_member_required
+def edit_quiz(request, quiz_id):
+    """Edit an existing quiz"""
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        category = request.POST.get('category', '').strip()
+        difficulty = request.POST.get('difficulty', 'easy')
+        time_limit = int(request.POST.get('time_limit', 30))
+        passing_score = int(request.POST.get('passing_score', 70))
+        is_active = request.POST.get('is_active') == 'on'
+        randomize_questions = request.POST.get('randomize_questions') == 'on'
+        
+        if title and description and category:
+            quiz.title = title
+            quiz.description = description
+            quiz.category = category
+            quiz.difficulty = difficulty
+            quiz.time_limit = time_limit
+            quiz.passing_score = passing_score
+            quiz.is_active = is_active
+            quiz.randomize_questions = randomize_questions
+            quiz.save()
+            messages.success(request, 'Quiz updated successfully!')
+        else:
+            messages.error(request, 'Title and description are required.')
+    
+    return redirect('quiz_detail_management', quiz_id=quiz_id)
+
+@staff_member_required
+def delete_quiz(request, quiz_id):
+    """Delete a quiz"""
+    if request.method == 'POST':
+        quiz = get_object_or_404(Quiz, id=quiz_id)
+        quiz_title = quiz.title
+        quiz.delete()
+        messages.success(request, f'Quiz "{quiz_title}" deleted successfully!')
+    
+    return redirect('quiz_management')
+
+@staff_member_required
+def create_quiz_question(request, quiz_id):
+    """Create a new question for a quiz"""
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    
+    if request.method == 'POST':
+        question_text = request.POST.get('question_text', '').strip()
+        question_type = request.POST.get('question_type', 'mcq')
+        correct_answer = request.POST.get('correct_answer', '').strip()
+        explanation = request.POST.get('explanation', '').strip()
+        points = int(request.POST.get('points', 1))
+        
+        # Handle choices for MCQ questions
+        choices = []
+        if question_type == 'mcq':
+            choice_1 = request.POST.get('choice_1', '').strip()
+            choice_2 = request.POST.get('choice_2', '').strip()
+            choice_3 = request.POST.get('choice_3', '').strip()
+            choice_4 = request.POST.get('choice_4', '').strip()
+            
+            choices = [choice for choice in [choice_1, choice_2, choice_3, choice_4] if choice]
+        
+        if question_text and correct_answer:
+            # Get the next order number
+            last_question = quiz.questions.order_by('-order').first()
+            next_order = (last_question.order + 1) if last_question else 1
+            
+            QuizQuestion.objects.create(
+                quiz=quiz,
+                question_text=question_text,
+                question_type=question_type,
+                choices=choices if choices else None,
+                correct_answer=correct_answer,
+                explanation=explanation,
+                points=points,
+                order=next_order
+            )
+            messages.success(request, 'Question added successfully!')
+        else:
+            messages.error(request, 'Question text and correct answer are required.')
+    
+    return redirect('quiz_detail_management', quiz_id=quiz_id)
+
+@staff_member_required
+def edit_quiz_question(request, quiz_id, question_id):
+    """Edit a quiz question"""
+    quiz = get_object_or_404(Quiz, id=quiz_id)
+    question = get_object_or_404(QuizQuestion, id=question_id, quiz=quiz)
+    
+    if request.method == 'POST':
+        question_text = request.POST.get('question_text', '').strip()
+        question_type = request.POST.get('question_type', 'mcq')
+        correct_answer = request.POST.get('correct_answer', '').strip()
+        explanation = request.POST.get('explanation', '').strip()
+        points = int(request.POST.get('points', 1))
+        
+        # Handle choices for MCQ questions
+        choices = []
+        if question_type == 'mcq':
+            choice_1 = request.POST.get('choice_1', '').strip()
+            choice_2 = request.POST.get('choice_2', '').strip()
+            choice_3 = request.POST.get('choice_3', '').strip()
+            choice_4 = request.POST.get('choice_4', '').strip()
+            
+            choices = [choice for choice in [choice_1, choice_2, choice_3, choice_4] if choice]
+        
+        if question_text and correct_answer:
+            question.question_text = question_text
+            question.question_type = question_type
+            question.choices = choices if choices else None
+            question.correct_answer = correct_answer
+            question.explanation = explanation
+            question.points = points
+            question.save()
+            messages.success(request, 'Question updated successfully!')
+        else:
+            messages.error(request, 'Question text and correct answer are required.')
+    
+    return redirect('quiz_detail_management', quiz_id=quiz_id)
+
+@staff_member_required
+def delete_quiz_question(request, quiz_id, question_id):
+    """Delete a quiz question"""
+    if request.method == 'POST':
+        quiz = get_object_or_404(Quiz, id=quiz_id)
+        question = get_object_or_404(QuizQuestion, id=question_id, quiz=quiz)
+        question.delete()
+        messages.success(request, 'Question deleted successfully!')
+    
+    return redirect('quiz_detail_management', quiz_id=quiz_id)
+
+# Enhanced Quiz Taking Views with Browser Locking
+@login_required
+def quiz_list(request):
+    """List all available quizzes for users"""
+    quizzes = Quiz.objects.filter(is_active=True).order_by('-created_at')
+    user_attempts = QuizAttempt.objects.filter(user=request.user)
+    
+    quiz_data = []
+    for quiz in quizzes:
+        attempts = user_attempts.filter(quiz=quiz).order_by('-started_at')
+        best_attempt = attempts.filter(completed_at__isnull=False).order_by('-percentage').first()
+        
+        quiz_data.append({
+            'quiz': quiz,
+            'attempts_count': attempts.count(),
+            'best_score': best_attempt.percentage if best_attempt else None,
+            'passed': best_attempt.passed if best_attempt else False,
+            'can_retake': True,  # Allow retakes
+        })
+    
+    context = {
+        'quiz_data': quiz_data,
+    }
+    return render(request, 'pages/quiz-list.html', context)
+
+@login_required
+def start_quiz(request, quiz_id):
+    """Start a quiz with browser locking"""
+    quiz = get_object_or_404(Quiz, id=quiz_id, is_active=True)
+    
+    # Check if user is locked from taking this specific quiz
+    from home.models import QuizLock
+    quiz_lock = QuizLock.objects.filter(user=request.user, quiz=quiz).first()
+    if quiz_lock:
+        messages.error(request, f'You are locked from taking "{quiz.title}". Reason: {quiz_lock.reason}')
+        return redirect('quiz_list')
+    
+    # Check if user has an active incomplete attempt
+    active_attempt = QuizAttempt.objects.filter(
+        user=request.user,
+        quiz=quiz,
+        completed_at__isnull=True
+    ).first()
+    
+    if active_attempt:
+        return redirect('take_quiz', attempt_id=active_attempt.id)
+    
+    # Create new attempt
+    attempt = QuizAttempt.objects.create(
+        user=request.user,
+        quiz=quiz,
+        total_points=quiz.total_points(),
+        is_locked=True,
+        ip_address=request.META.get('REMOTE_ADDR')
+    )
+    
+    return redirect('take_quiz', attempt_id=attempt.id)
+
+@login_required
+def take_quiz(request, attempt_id):
+    """Take quiz with browser locking enabled"""
+    attempt = get_object_or_404(QuizAttempt, id=attempt_id, user=request.user)
+    
+    # Check if user is locked from taking this specific quiz
+    from home.models import QuizLock
+    quiz_lock = QuizLock.objects.filter(user=request.user, quiz=attempt.quiz).first()
+    if quiz_lock:
+        messages.error(request, f'You are locked from taking "{attempt.quiz.title}". Reason: {quiz_lock.reason}')
+        return redirect('quiz_list')
+    
+    if attempt.completed_at:
+        return redirect('quiz_result', attempt_id=attempt_id)
+    
+    quiz = attempt.quiz
+    questions = quiz.questions.all()
+    
+    if quiz.randomize_questions:
+        questions = questions.order_by('?')
+    else:
+        questions = questions.order_by('order')
+    
+    # Get existing answers
+    user_answers = QuizAnswer.objects.filter(attempt=attempt)
+    answered_questions = {answer.question_id: answer.user_answer for answer in user_answers}
+    
+    context = {
+        'attempt': attempt,
+        'quiz': quiz,
+        'questions': questions,
+        'answered_questions': answered_questions,
+        'time_limit_minutes': quiz.time_limit,
+        'is_locked': attempt.is_locked,
+    }
+    
+    return render(request, 'pages/take-quiz.html', context)
+
+@login_required
+@require_http_methods(["POST"])
+def submit_quiz_answer(request, attempt_id):
+    """Submit answer for a specific question or log violations"""
+    attempt = get_object_or_404(QuizAttempt, id=attempt_id, user=request.user)
+    
+    if attempt.completed_at:
+        return JsonResponse({'error': 'Quiz already completed'}, status=400)
+    
+    # Handle violation logging
+    if request.content_type == 'application/json':
+        import json
+        data = json.loads(request.body)
+        if data.get('violation') == 'browser_lock_violation':
+            attempt.violations_count += 1
+            attempt.save(update_fields=['violations_count'])
+            
+            # Check if user has reached violation limit (5)
+            if attempt.violations_count >= 5:
+                # End the quiz immediately
+                from django.utils import timezone
+                from home.models import QuizLock
+                
+                attempt.completed_at = timezone.now()
+                attempt.time_taken = attempt.completed_at - attempt.started_at
+                attempt.calculate_percentage()
+                attempt.save()
+                
+                # Lock user from taking this specific quiz in the future
+                quiz_lock, created = QuizLock.objects.get_or_create(
+                    user=attempt.user,
+                    quiz=attempt.quiz,
+                    defaults={
+                        'reason': f"Locked due to {attempt.violations_count} security violations during quiz attempt",
+                        'violations_count': attempt.violations_count
+                    }
+                )
+                
+                return JsonResponse({
+                    'success': True, 
+                    'violations_logged': attempt.violations_count,
+                    'quiz_ended': True,
+                    'quiz_locked': True,
+                    'message': f'Quiz ended due to excessive violations. You have been locked from taking "{attempt.quiz.title}" quiz.'
+                })
+            
+            return JsonResponse({'success': True, 'violations_logged': attempt.violations_count})
+    
+    question_id = request.POST.get('question_id')
+    user_answer = request.POST.get('answer', '').strip()
+    
+    if not question_id:
+        return JsonResponse({'error': 'No question_id provided'}, status=400)
+    
+    question = get_object_or_404(QuizQuestion, id=question_id, quiz=attempt.quiz)
+    
+    # Check if answer is correct
+    is_correct = user_answer.lower() == question.correct_answer.lower()
+    points_earned = question.points if is_correct else 0
+    
+    # Save or update answer
+    quiz_answer, created = QuizAnswer.objects.update_or_create(
+        attempt=attempt,
+        question=question,
+        defaults={
+            'user_answer': user_answer,
+            'is_correct': is_correct,
+            'points_earned': points_earned,
+        }
+    )
+    
+    return JsonResponse({
+        'success': True,
+        'is_correct': is_correct,
+        'points_earned': points_earned,
+    })
+
+@login_required
+@require_http_methods(["POST"])
+def submit_quiz(request, attempt_id):
+    """Submit the entire quiz"""
+    attempt = get_object_or_404(QuizAttempt, id=attempt_id, user=request.user)
+    
+    if attempt.completed_at:
+        return redirect('quiz_result', attempt_id=attempt_id)
+    
+    # Calculate final score
+    answers = QuizAnswer.objects.filter(attempt=attempt)
+    total_score = sum(answer.points_earned for answer in answers)
+    
+    # Complete the attempt
+    attempt.completed_at = timezone.now()
+    attempt.score = total_score
+    attempt.time_taken = attempt.completed_at - attempt.started_at
+    attempt.calculate_percentage()
+    attempt.is_locked = False  # Unlock browser
+    attempt.save()
+    
+    # Update leaderboard with quiz score (only if passed)
+    if attempt.passed:
+        update_leaderboard_with_quiz_score(request.user, attempt.quiz.category)
+    
+    return redirect('quiz_result', attempt_id=attempt_id)
+
+@login_required
+def quiz_result(request, attempt_id):
+    """Show quiz results"""
+    attempt = get_object_or_404(QuizAttempt, id=attempt_id, user=request.user)
+    
+    if not attempt.completed_at:
+        return redirect('take_quiz', attempt_id=attempt_id)
+    
+    answers = QuizAnswer.objects.filter(attempt=attempt).select_related('question')
+    
+    context = {
+        'attempt': attempt,
+        'quiz': attempt.quiz,
+        'answers': answers,
+        'total_questions': attempt.quiz.questions.count(),
+        'correct_answers': sum(1 for answer in answers if answer.is_correct),
+    }
+    
+    return render(request, 'pages/quiz-result.html', context)

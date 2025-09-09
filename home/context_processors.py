@@ -86,3 +86,13 @@ def dynamic_page_title(request):
 
 def recaptcha_site_key(request):
     return {'RECAPTCHA_SITE_KEY': settings.RECAPTCHA_SITE_KEY}
+
+def pinned_nav_links(request):
+    """Provide pinned navigation links for admin dropdown"""
+    from .models import AdminNavLink
+    
+    pinned_links = []
+    if request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser):
+        pinned_links = AdminNavLink.objects.filter(is_active=True)
+    
+    return {'pinned_nav_links': pinned_links}

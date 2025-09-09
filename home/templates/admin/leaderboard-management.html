@@ -1,0 +1,396 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+{% load add_input_validation %}
+
+{% block content %}
+<style>
+    .leaderboard-management {
+        margin: 2rem 0;
+        min-height: 70vh;
+    }
+
+    .admin-header {
+        background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%);
+        color: #1c2540;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(255, 205, 17, 0.4);
+    }
+
+    .admin-header h1 {
+        color: #1c2540;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+    }
+
+    .admin-header p {
+        color: rgba(28, 37, 64, 0.8);
+        margin-bottom: 0;
+    }
+
+    .entry-row {
+        background-color: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .entry-row:hover {
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .edit-form {
+        display: none;
+        background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
+        padding: 2rem;
+        border: 2px solid #242e4c;
+        border-radius: 10px;
+        margin-top: 1rem;
+        box-shadow: 0 4px 15px rgba(36, 46, 76, 0.2);
+    }
+
+    .btn-group {
+        gap: 0.5rem;
+    }
+
+    .points-display {
+        font-weight: bold;
+        color: #3aaf85;
+        font-size: 1.1rem;
+    }
+
+    .user-info {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #1f2937;
+    }
+
+    .category-badge {
+        background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        box-shadow: 0 2px 8px rgba(36, 46, 76, 0.3);
+    }
+
+    .rank-badge {
+        background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%);
+        color: #1c2540;
+        padding: 0.5rem 1rem;
+        border-radius: 50%;
+        font-weight: bold;
+        font-size: 1.2rem;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 3px 10px rgba(255, 205, 17, 0.4);
+    }
+
+    .alert {
+        margin-bottom: 1rem;
+        border-radius: 10px;
+    }
+
+    .category-selector {
+        background-color: #fff;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+
+    .stats-summary {
+        background: linear-gradient(87deg, #ebf4f6 0%, #f9fafb 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 2px 8px rgba(36, 46, 76, 0.1);
+    }
+
+    .nav-buttons {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-top: 2rem;
+    }
+</style>
+
+<div class="container mt-5">
+    <br><br><br>
+
+    <!-- Admin Header -->
+    <div class="admin-header">
+        <h1>Leaderboard Management</h1>
+        <p>Manage user points and entries on the leaderboard</p>
+    </div>
+
+    <!-- Display Messages -->
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Category Selection -->
+    <div class="category-selector">
+        <form method="get">
+            <div class="row align-items-end">
+                <div class="col-md-6">
+                    <label for="category" class="form-label"><strong>Select Category:</strong></label>
+                    <select name="category" id="category" class="form-select form-select-lg"
+                        onchange="this.form.submit()">
+                        <option value="">-- Select Category --</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    {% if selected_category %}
+                    <div class="stats-summary">
+                        <h4 style="color: #333; margin-bottom: 0.5rem;">{{ selected_category }} Category</h4>
+                        <p style="color: #666; margin-bottom: 0;"><strong>{{ entries.count }}</strong> total entries</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if selected_category %}
+    {% if entries %}
+    <!-- Leaderboard Entries -->
+    {% for entry in entries %}
+    <div class="entry-row">
+        <div class="row align-items-center">
+            <div class="col-md-1">
+                <div class="rank-badge">#{{ forloop.counter }}</div>
+            </div>
+            <div class="col-md-3">
+                <span class="user-info">{{ entry.user.first_name }} {{ entry.user.last_name }}</span>
+                <br>
+                <small class="text-muted">{{ entry.user.email }}</small>
+                {% if entry.user.email in quiz_violations %}
+                <br>
+                <button class="btn btn-sm btn-warning mt-1" onclick="toggleViolations('{{ entry.user.email|escapejs }}')">
+                    <i class="fas fa-exclamation-triangle"></i> Quiz Violations
+                </button>
+                {% endif %}
+            </div>
+            <div class="col-md-2">
+                <span class="category-badge">{{ entry.category }}</span>
+            </div>
+            <div class="col-md-2">
+                <span class="points-display">{{ entry.total_points }} points</span>
+            </div>
+            <div class="col-md-1">
+                {% if entry.user.email in quiz_violations %}
+                <span class="badge bg-danger">
+                    {{ quiz_violations|get_item:entry.user.email|length }} violations
+                </span>
+                {% else %}
+                <span class="badge bg-success">Clean</span>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <div class="btn-group d-flex">
+                    <button class="btn"
+                        style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; border: none;"
+                        onclick="toggleEditForm({{ entry.id }})">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button class="btn btn-danger"
+                        onclick="confirmDelete({{ entry.id }}, '{{ entry.user.first_name }} {{ entry.user.last_name }}', '{{ entry.category }}')">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Form (Hidden by default) -->
+        <div id="edit-form-{{ entry.id }}" class="edit-form">
+            <h5 style="color: #242e4c; margin-bottom: 1rem;"><i class="fas fa-edit"></i> Edit Entry: {{
+                entry.user.first_name }} {{ entry.user.last_name }}</h5>
+            <form method="post" action="{% url 'edit_leaderboard_entry' entry.id %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="category-{{ entry.id }}" class="form-label"><strong>Category:</strong></label>
+                        <input type="text" name="category" id="category-{{ entry.id }}"
+                            class="form-control form-control-lg" value="{{ entry.category }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="points-{{ entry.id }}" class="form-label"><strong>Points:</strong></label>
+                        <input type="number" name="total_points" id="points-{{ entry.id }}"
+                            class="form-control form-control-lg" value="{{ entry.total_points }}" min="0" required>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-success btn-lg"><i class="fas fa-save"></i> Save
+                        Changes</button>
+                    <button type="button" class="btn btn-lg"
+                        style="background: linear-gradient(87deg, #6b7280 0%, #4b5563 100%); color: white; border: none;"
+                        onclick="toggleEditForm({{ entry.id }})"><i class="fas fa-times"></i> Cancel</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Quiz Violations Details -->
+        {% if entry.user.email in quiz_violations %}
+        <div id="violations-{{ entry.user.email|slugify }}" class="violations-details" style="display: none;">
+            <div class="alert alert-warning mt-3">
+                <h6><i class="fas fa-exclamation-triangle"></i> Quiz Security Violations</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Quiz</th>
+                                <th>Violations</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for violation in quiz_violations|get_item:entry.user.email %}
+                            <tr>
+                                <td>{{ violation.quiz_title }}</td>
+                                <td>
+                                    <span class="badge bg-danger">
+                                        {{ violation.violations_count }} times
+                                    </span>
+                                </td>
+                                <td>{{ violation.started_at|date:"M d, Y H:i" }}</td>
+                                <td>
+                                    {% if violation.completed %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Incomplete</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted">
+                    <i class="fas fa-info-circle"></i> 
+                    Violations include: tab switching, window blur, right-click attempts, or trying to open developer tools during quiz.
+                </small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="alert text-center"
+        style="padding: 2rem; border-radius: 10px; background: linear-gradient(87deg, #f9fafb 0%, #e5e7eb 100%); border: 1px solid #d1d5db; color: #374151;">
+        <i class="fas fa-info-circle" style="font-size: 2rem; margin-bottom: 1rem; color: #242e4c;"></i>
+        <h4 style="color: #1f2937;">No entries found</h4>
+        <p style="color: #6b7280;">No entries found for the <strong>{{ selected_category }}</strong> category.</p>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="alert text-center"
+        style="padding: 2rem; border-radius: 10px; background: linear-gradient(87deg, #ebf4f6 0%, #f9fafb 100%); border: 1px solid #242e4c; color: #1f2937;">
+        <i class="fas fa-hand-point-up" style="font-size: 2rem; margin-bottom: 1rem; color: #242e4c;"></i>
+        <h4 style="color: #242e4c;">Select a Category</h4>
+        <p style="color: #6b7280;">Please select a category above to view and manage leaderboard entries.</p>
+    </div>
+    {% endif %}
+
+    <!-- Navigation Buttons -->
+    <div class="nav-buttons text-center">
+        <a href="{% url 'admin_dashboard' %}" class="btn btn-lg me-3"
+            style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; border: none;">
+            <i class="fas fa-tachometer-alt"></i> Back to Dashboard
+        </a>
+        <a href="{% url 'leaderboard' %}" class="btn btn-lg"
+            style="background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%); color: #1c2540; border: none;">
+            <i class="fas fa-trophy"></i> View Public Leaderboard
+        </a>
+    </div>
+</div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteUserName"></strong>'s entry from the <strong
+                        id="deleteCategory"></strong> category?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteForm" method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">Delete Entry</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleEditForm(entryId) {
+        const form = document.getElementById('edit-form-' + entryId);
+        if (form.style.display === 'none' || form.style.display === '') {
+            form.style.display = 'block';
+        } else {
+            form.style.display = 'none';
+        }
+    }
+
+    function toggleViolations(userEmail) {
+        const slug = userEmail.replace(/[@.]/g, '-').toLowerCase();
+        const violationsDiv = document.getElementById('violations-' + slug);
+        if (violationsDiv.style.display === 'none' || violationsDiv.style.display === '') {
+            violationsDiv.style.display = 'block';
+        } else {
+            violationsDiv.style.display = 'none';
+        }
+    }
+
+    function confirmDelete(entryId, userName, category) {
+        document.getElementById('deleteUserName').textContent = userName;
+        document.getElementById('deleteCategory').textContent = category;
+        document.getElementById('deleteForm').action = "{% url 'delete_leaderboard_entry' 0 %}".replace('0', entryId);
+
+        const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+        modal.show();
+    }
+
+    // Auto-hide alerts after 5 seconds
+    document.addEventListener('DOMContentLoaded', function () {
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(function (alert) {
+            setTimeout(function () {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 5000);
+        });
+    });
+</script>
+
+{% endblock %}

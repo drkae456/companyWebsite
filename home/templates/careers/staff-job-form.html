@@ -1,0 +1,297 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    .job-form {
+        margin: 2rem 0;
+        min-height: 70vh;
+    }
+
+    .admin-header {
+        background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%);
+        color: #1c2540;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(255, 205, 17, 0.4);
+    }
+
+    .admin-header h1 {
+        color: #1c2540;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+    }
+
+    .admin-header p {
+        color: rgba(28, 37, 64, 0.8);
+        margin-bottom: 0;
+    }
+
+    .form-container {
+        background-color: #fff;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: linear-gradient(87deg, #f9fafb 0%, #ffffff 100%);
+    }
+
+    .form-section h3 {
+        color: #242e4c;
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .form-label {
+        color: #1f2937;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .form-control,
+    .form-select {
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: #242e4c;
+        box-shadow: 0 0 0 0.2rem rgba(36, 46, 76, 0.25);
+    }
+
+    .btn-save {
+        background: linear-gradient(87deg, #3aaf85 0%, #2ebb88 100%);
+        color: white;
+        padding: 0.75rem 2rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+
+    .btn-cancel {
+        background: linear-gradient(87deg, #6b7280 0%, #4b5563 100%);
+        color: white;
+        padding: 0.75rem 2rem;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .nav-buttons {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .error-text {
+        color: #dc3545;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+</style>
+
+<div class="container mt-5">
+    <br><br><br>
+
+    <div class="job-form">
+        <!-- Admin Header -->
+        <div class="admin-header">
+            <h1>{{ action }} Job Posting</h1>
+            <p>{% if action == 'Create' %}Create a new job posting{% else %}Edit job posting details{% endif %}</p>
+        </div>
+
+        <!-- Display Messages -->
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Job Form -->
+        <div class="form-container">
+            <form method="post">
+                {% csrf_token %}
+
+                <!-- Basic Information -->
+                <div class="form-section">
+                    <h3><i class="fas fa-briefcase"></i> Basic Information</h3>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">Job Title *</label>
+                            {{ form.title }}
+                            {% for error in form.title.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">Job Description
+                                *</label>
+                            {{ form.description }}
+                            {% for error in form.description.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Job Details -->
+                <div class="form-section">
+                    <h3><i class="fas fa-cog"></i> Job Details</h3>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="{{ form.job_type.id_for_label }}" class="form-label">Job Type *</label>
+                            {{ form.job_type }}
+                            {% for error in form.job_type.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.location.id_for_label }}" class="form-label">Location *</label>
+                            {{ form.location }}
+                            {% for error in form.location.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.experience_level.id_for_label }}" class="form-label">Experience
+                                Level</label>
+                            {{ form.experience_level }}
+                            {% for error in form.experience_level.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="{{ form.closing_date.id_for_label }}" class="form-label">Closing Date *</label>
+                            {{ form.closing_date }}
+                            {% for error in form.closing_date.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.status.id_for_label }}" class="form-label">Status</label>
+                            {{ form.status }}
+                            {% for error in form.status.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ form.salary_range.id_for_label }}" class="form-label">Salary Range</label>
+                            {{ form.salary_range }}
+                            {% for error in form.salary_range.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="{{ form.department.id_for_label }}" class="form-label">Department</label>
+                            {{ form.department }}
+                            {% for error in form.department.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="{{ form.skills_required.id_for_label }}" class="form-label">Required
+                                Skills</label>
+                            {{ form.skills_required }}
+                            {% for error in form.skills_required.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Information -->
+                <div class="form-section">
+                    <h3><i class="fas fa-list"></i> Detailed Information</h3>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="{{ form.responsibilities.id_for_label }}"
+                                class="form-label">Responsibilities</label>
+                            {{ form.responsibilities }}
+                            {% for error in form.responsibilities.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="{{ form.qualifications.id_for_label }}"
+                                class="form-label">Qualifications</label>
+                            {{ form.qualifications }}
+                            {% for error in form.qualifications.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label for="{{ form.benefits.id_for_label }}" class="form-label">Benefits</label>
+                            {{ form.benefits }}
+                            {% for error in form.benefits.errors %}
+                            <div class="error-text">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="text-center">
+                    <button type="submit" class="btn btn-save btn-lg me-3">
+                        <i class="fas fa-save"></i> {{ action }} Job
+                    </button>
+                    <a href="{% url 'staff_job_management' %}" class="btn btn-cancel btn-lg">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <a href="{% url 'staff_job_management' %}" class="btn btn-lg"
+                style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; border: none;">
+                <i class="fas fa-arrow-left"></i> Back to Job Management
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-hide alerts after 5 seconds
+    document.addEventListener('DOMContentLoaded', function () {
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(function (alert) {
+            setTimeout(function () {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 5000);
+        });
+    });
+</script>
+
+{% endblock %}

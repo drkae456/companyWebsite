@@ -75,6 +75,37 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
+            name='QuizLock',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('locked_at', models.DateTimeField(auto_now_add=True)),
+                ('reason', models.TextField(help_text='Reason for the quiz lock')),
+                ('violations_count', models.IntegerField(default=5, help_text='Number of violations that triggered the lock')),
+                ('quiz', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='user_locks', to='home.quiz')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='quiz_locks', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'ordering': ['-locked_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='AdminNavLink',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=100, help_text='Display name for the nav link')),
+                ('url_name', models.CharField(max_length=100, help_text='Django URL name for reverse lookup')),
+                ('icon', models.CharField(max_length=50, help_text='FontAwesome icon class (e.g., \'fas fa-users\')')),
+                ('description', models.TextField(help_text='Description of what this link does')),
+                ('order', models.PositiveIntegerField(default=0, help_text='Display order in navigation')),
+                ('is_active', models.BooleanField(default=True, help_text='Whether this link appears in navigation')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_nav_links', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'ordering': ['order', 'title'],
+            },
+        ),
+        migrations.CreateModel(
             name='BlogPost',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -191,6 +222,7 @@ class Migration(migrations.Migration):
                 ('responsibilities', tinymce.models.HTMLField(blank=True, null=True)),
                 ('salary_range', models.CharField(blank=True, max_length=100, null=True)),
                 ('skills_required', models.TextField(blank=True, null=True)),
+                ('status', models.CharField(choices=[('active', 'Active'), ('archived', 'Archived'), ('draft', 'Draft')], default='active', max_length=20)),
             ],
         ),
         migrations.CreateModel(
@@ -345,7 +377,7 @@ class Migration(migrations.Migration):
                 ('updated_at', models.DateTimeField(auto_now=True, verbose_name='updated_at')),
                 ('is_active', models.BooleanField(default=True)),
                 ('id', models.BigIntegerField(error_messages={'unique': 'A user with that Student ID already exists.'}, help_text='Required. Enter Deakin Student ID. Digits only.', primary_key=True, serialize=False, unique=True, validators=[home.validators.StudentIdValidator], verbose_name='student_id')),
-                ('year', models.PositiveIntegerField(blank=True)),
+                ('year', models.PositiveIntegerField(blank=True, null=True)),
                 ('trimester', models.CharField(blank=True, choices=[('T1', 'Trimester 1'), ('T2', 'Trimester 2'), ('T3', 'Trimester 3')], max_length=10, verbose_name='trimester')),
                 ('unit', models.CharField(blank=True, choices=[('SIT782', 'SIT782'), ('SIT764', 'SIT764'), ('SIT378', 'SIT378'), ('SIT374', 'SIT374')], max_length=50, verbose_name='unit')),
                 ('course', models.CharField(blank=True, choices=[('BDS', 'Bachelor of Data Science'), ('BCS', 'Bachelor of Computer Science'), ('BCYB', 'Bachelor of Cyber Security'), ('BIT', 'Bachelor of Information Technology'), ('BSE', 'Bachelor of Software Enginerring'), ('BAI', 'Bachelor of AI'), ('MAAI', 'Master of Applied AI'), ('MDS', 'Master of Data Science'), ('MIT', 'Master of Information Technology'), ('MITM', 'Master of IT Management'), ('MCS', 'Master of Cyber Security')], max_length=10, null=True)),
@@ -522,5 +554,103 @@ class Migration(migrations.Migration):
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('last_notification', models.DateTimeField(blank=True, null=True)),
             ],
+        ),
+        migrations.AddField(
+            model_name='userblogpage',
+            name='status',
+            field=models.CharField(choices=[('pending', 'Pending Review'), ('approved', 'Approved'), ('rejected', 'Rejected')], default='pending', max_length=20),
+        ),
+        migrations.AddField(
+            model_name='userblogpage',
+            name='user',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL),
+        ),
+        migrations.CreateModel(
+            name='Quiz',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('title', models.CharField(max_length=255)),
+                ('description', models.TextField()),
+                ('category', models.CharField(choices=[('network', 'Network Security'), ('web', 'Web Application Security'), ('crypto', 'Cryptography'), ('general', 'General Knowledge'), ('python', 'Python'), ('javascript', 'JavaScript'), ('html_css', 'HTML & CSS'), ('web_security', 'Web Security'), ('reverse_engineering', 'Reverse Engineering'), ('forensics', 'Forensics'), ('binary_exploitation', 'Binary Exploitation'), ('linux', 'Linux'), ('algorithms', 'Algorithms'), ('data_structures', 'Data Structures'), ('databases', 'Databases'), ('regex', 'Regex'), ('secure_coding', 'Secure Coding'), ('logic_reasoning', 'Logic & Reasoning'), ('misc', 'Miscellaneous')], help_text='Category for leaderboard grouping - matches cyber challenge categories', max_length=20)),
+                ('difficulty', models.CharField(choices=[('easy', 'Easy'), ('medium', 'Medium'), ('hard', 'Hard')], max_length=10)),
+                ('time_limit', models.IntegerField(default=30, help_text='Time limit in minutes')),
+                ('is_active', models.BooleanField(default=True)),
+                ('randomize_questions', models.BooleanField(default=False)),
+                ('passing_score', models.IntegerField(default=70, help_text='Percentage required to pass')),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('created_by', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_quizzes', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'verbose_name_plural': 'Quizzes',
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='QuizQuestion',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('question_text', models.TextField()),
+                ('question_type', models.CharField(choices=[('mcq', 'Multiple Choice'), ('true_false', 'True/False'), ('text', 'Text Input')], default='mcq', max_length=20)),
+                ('choices', models.JSONField(blank=True, help_text='For MCQ questions: JSON array of choices', null=True)),
+                ('correct_answer', models.TextField(help_text='Correct answer text')),
+                ('explanation', models.TextField(blank=True, null=True)),
+                ('points', models.IntegerField(default=1)),
+                ('order', models.PositiveIntegerField(default=0)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('quiz', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='questions', to='home.quiz')),
+            ],
+            options={
+                'ordering': ['order', 'created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='QuizAttempt',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('started_at', models.DateTimeField(auto_now_add=True)),
+                ('completed_at', models.DateTimeField(blank=True, null=True)),
+                ('score', models.IntegerField(default=0)),
+                ('total_points', models.IntegerField(default=0)),
+                ('percentage', models.FloatField(default=0.0)),
+                ('passed', models.BooleanField(default=False)),
+                ('time_taken', models.DurationField(blank=True, null=True)),
+                ('is_locked', models.BooleanField(default=False)),
+                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
+                ('violations_count', models.IntegerField(default=0, help_text='Number of browser lock violations during quiz')),
+                ('quiz', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='home.quiz')),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'ordering': ['-started_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='QuizAnswer',
+            fields=[
+                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('user_answer', models.TextField()),
+                ('is_correct', models.BooleanField(default=False)),
+                ('points_earned', models.IntegerField(default=0)),
+                ('answered_at', models.DateTimeField(auto_now_add=True)),
+                ('attempt', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='answers', to='home.quizattempt')),
+                ('question', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='home.quizquestion')),
+            ],
+        ),
+        migrations.AddConstraint(
+            model_name='quizattempt',
+            constraint=models.UniqueConstraint(fields=('user', 'quiz', 'started_at'), name='home_quizattempt_user_quiz_started_at_key'),
+        ),
+        migrations.AddConstraint(
+            model_name='quizlock',
+            constraint=models.UniqueConstraint(fields=('user', 'quiz'), name='home_quizlock_user_quiz_uniq'),
+        ),
+        migrations.AddConstraint(
+            model_name='adminnavlink',
+            constraint=models.UniqueConstraint(fields=('url_name',), name='home_adminnavlink_url_name_uniq'),
+        ),
+        migrations.AddConstraint(
+            model_name='quizanswer',
+            constraint=models.UniqueConstraint(fields=('attempt', 'question'), name='home_quizanswer_attempt_question_key'),
         ),
     ]

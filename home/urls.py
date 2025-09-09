@@ -124,6 +124,15 @@ urlpatterns = [
     path("careers/graduate-program/", views.graduate_program, name="graduate-program"),
     path("careers/graduate-program/detailed/", views.graduate_program_detailed, name="graduate-program-detailed"),
     path("careers/faqs/", views.careers_faqs, name="careers-faqs"),
+    
+    # Staff Job Management URLs
+    path('staff/jobs/', views.staff_job_management, name='staff_job_management'),
+    path('staff/jobs/create/', views.staff_create_job, name='staff_create_job'),
+    path('staff/jobs/<int:job_id>/edit/', views.staff_edit_job, name='staff_edit_job'),
+    path('staff/jobs/<int:job_id>/archive/', views.staff_archive_job, name='staff_archive_job'),
+    path('staff/jobs/<int:job_id>/delete/', views.staff_delete_job, name='staff_delete_job'),
+    path('staff/job-applications/', views.staff_job_applications, name='staff_job_applications'),
+    path('staff/job-applications/<int:application_id>/', views.staff_application_detail, name='staff_application_detail'),
 
     path('blog/', Index.as_view(), name = 'blog'),
     # path('blog/<int:pk>/', DetaswilArticleView.as_view(), name='blog_post'),
@@ -136,7 +145,6 @@ urlpatterns = [
     path('captcha/', include('captcha.urls')), 
     path('post-otp-captcha/', views.post_otp_login_captcha, name='post_otp_login_captcha'),
     path('accounts/passkey-login/', views.login_with_passkey, name='passkey_login'),
-    path('admin-dashboard/', admin_dashboard, name='admin_dashboard'),
     path("passkeys/reset/", views.reset_passkeys_request, name="reset_passkeys_request"),
     path("passkeys/reset/verify/", views.reset_passkeys_verify, name="reset_passkeys_verify"),
 
@@ -190,19 +198,54 @@ urlpatterns = [
     path('accounts/login/', UserLoginView.as_view(), name='login'),
     path('rate_limit_exceeded/', rate_limit_exceeded, name='rate_limit_exceeded'),
   path('accounts/admin/', AdminLoginView.as_view(), name='admin_login'),
-    path('admin/dashboard/', admin_dashboard, name='admin_dashboard'),
+    path('staff/dashboard/', admin_dashboard, name='admin_dashboard'),
     path('staff/user-management/', views.user_management, name='user_management'),
+    path('staff/user-management/unlock-quiz/<int:user_id>/', views.unlock_user_quiz, name='unlock_user_quiz'),
+    path('staff/user-management/unlock-quiz/<int:user_id>/<int:quiz_id>/', views.unlock_user_quiz, name='unlock_specific_quiz'),
+    path('staff/pin-nav-link/', views.pin_nav_link, name='pin_nav_link'),
+    path('staff/unpin-nav-link/', views.unpin_nav_link, name='unpin_nav_link'),
     path('staff/assign-user-project/', views.assign_user_project, name='assign_user_project'),
     path('staff/update-user/', views.update_user, name='update_user'),
     path('staff/bulk-assign-users-project/', views.bulk_assign_users_project, name='bulk_assign_users_project'),
     path('staff/bulk-update-user-status/', views.bulk_update_user_status, name='bulk_update_user_status'),
     path('staff/bulk-update-student-info/', views.bulk_update_student_info, name='bulk_update_student_info'),
+    path('staff/delete-user/', views.delete_user, name='delete_user'),
     # Project Teams Management URLs
     path('staff/project-teams/', views.project_teams, name='project_teams'),
     path('staff/projects/add/', views.add_project, name='add_project'),
     path('staff/projects/<str:pk>/edit/', views.edit_project, name='edit_project'),
     path('staff/projects/<str:pk>/delete/', views.delete_project, name='delete_project'),
     path('staff/get-available-users/', views.get_available_users, name='get_available_users'),
+    
+    # Staff Leaderboard Management URLs
+    path('staff/leaderboard/', views.staff_leaderboard_management, name='staff_leaderboard_management'),
+    path('staff/leaderboard/edit/<int:entry_id>/', views.edit_leaderboard_entry, name='edit_leaderboard_entry'),
+    path('staff/leaderboard/delete/<int:entry_id>/', views.delete_leaderboard_entry, name='delete_leaderboard_entry'),
+    
+    # Staff Announcement Management URLs
+    path('staff/announcements/', views.announcement_management, name='announcement_management'),
+    path('staff/announcements/create/', views.create_announcement, name='create_announcement'),
+    path('staff/announcements/<int:announcement_id>/edit/', views.edit_announcement, name='edit_announcement'),
+    path('staff/announcements/<int:announcement_id>/delete/', views.delete_announcement, name='delete_announcement'),
+    path('staff/announcements/<int:announcement_id>/toggle/', views.toggle_announcement, name='toggle_announcement'),
+    
+    # Staff Quiz Management URLs
+    path('staff/quizzes/', views.quiz_management, name='quiz_management'),
+    path('staff/quizzes/create/', views.create_quiz, name='create_quiz'),
+    path('staff/quizzes/<int:quiz_id>/', views.quiz_detail_management, name='quiz_detail_management'),
+    path('staff/quizzes/<int:quiz_id>/edit/', views.edit_quiz, name='edit_quiz'),
+    path('staff/quizzes/<int:quiz_id>/delete/', views.delete_quiz, name='delete_quiz'),
+    path('staff/quizzes/<int:quiz_id>/questions/create/', views.create_quiz_question, name='create_quiz_question'),
+    path('staff/quizzes/<int:quiz_id>/questions/<int:question_id>/edit/', views.edit_quiz_question, name='edit_quiz_question'),
+    path('staff/quizzes/<int:quiz_id>/questions/<int:question_id>/delete/', views.delete_quiz_question, name='delete_quiz_question'),
+    
+    # Quiz Taking URLs (for users)
+    path('quizzes/', views.quiz_list, name='quiz_list'),
+    path('quiz/<int:quiz_id>/start/', views.start_quiz, name='start_quiz'),
+    path('quiz/take/<int:attempt_id>/', views.take_quiz, name='take_quiz'),
+    path('quiz/submit-answer/<int:attempt_id>/', views.submit_quiz_answer, name='submit_quiz_answer'),
+    path('quiz/submit/<int:attempt_id>/', views.submit_quiz, name='submit_quiz'),
+    path('quiz/result/<int:attempt_id>/', views.quiz_result, name='quiz_result'),
     
 
     #swagger-new-implementation

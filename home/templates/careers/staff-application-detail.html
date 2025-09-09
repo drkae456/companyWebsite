@@ -1,0 +1,247 @@
+{% extends 'layouts/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+    .application-detail {
+        margin: 2rem 0;
+        min-height: 70vh;
+    }
+
+    .admin-header {
+        background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%);
+        color: #1c2540;
+        padding: 2rem;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(255, 205, 17, 0.4);
+    }
+
+    .admin-header h1 {
+        color: #1c2540;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+    }
+
+    .admin-header p {
+        color: rgba(28, 37, 64, 0.8);
+        margin-bottom: 0;
+    }
+
+    .detail-card {
+        background-color: #fff;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+
+    .detail-section {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: linear-gradient(87deg, #f9fafb 0%, #ffffff 100%);
+    }
+
+    .detail-section h3 {
+        color: #242e4c;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+        font-weight: 600;
+    }
+
+    .info-row {
+        display: flex;
+        margin-bottom: 0.75rem;
+        align-items: center;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #1f2937;
+        min-width: 140px;
+        margin-right: 1rem;
+    }
+
+    .info-value {
+        color: #6b7280;
+        flex: 1;
+    }
+
+    .file-download {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: linear-gradient(87deg, #3aaf85 0%, #2ebb88 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 500;
+        margin-right: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .file-download:hover {
+        color: white;
+        opacity: 0.9;
+    }
+
+    .nav-buttons {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+</style>
+
+<div class="container mt-5">
+    <br><br><br>
+
+    <div class="application-detail">
+        <!-- Admin Header -->
+        <div class="admin-header">
+            <h1>Application Details</h1>
+            <p>{{ application.name }} - {{ application.job.title }}</p>
+        </div>
+
+        <!-- Application Details -->
+        <div class="detail-card">
+            <!-- Applicant Information -->
+            <div class="detail-section">
+                <h3><i class="fas fa-user"></i> Applicant Information</h3>
+                <div class="info-row">
+                    <div class="info-label">Full Name:</div>
+                    <div class="info-value">{{ application.name }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Email Address:</div>
+                    <div class="info-value">
+                        <a href="mailto:{{ application.email }}" style="color: #242e4c;">{{ application.email }}</a>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Application Date:</div>
+                    <div class="info-value">{{ application.applied_date|date:"F d, Y \a\t H:i" }}</div>
+                </div>
+            </div>
+
+            <!-- Job Information -->
+            <div class="detail-section">
+                <h3><i class="fas fa-briefcase"></i> Job Information</h3>
+                <div class="info-row">
+                    <div class="info-label">Position:</div>
+                    <div class="info-value">{{ application.job.title }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Job Type:</div>
+                    <div class="info-value">{{ application.job.get_job_type_display }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Location:</div>
+                    <div class="info-value">{{ application.job.location }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Experience Level:</div>
+                    <div class="info-value">{{ application.job.get_experience_level_display }}</div>
+                </div>
+                {% if application.job.salary_range %}
+                <div class="info-row">
+                    <div class="info-label">Salary Range:</div>
+                    <div class="info-value">{{ application.job.salary_range }}</div>
+                </div>
+                {% endif %}
+                {% if application.job.department %}
+                <div class="info-row">
+                    <div class="info-label">Department:</div>
+                    <div class="info-value">{{ application.job.department }}</div>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <div class="info-label">Job Status:</div>
+                    <div class="info-value">{{ application.job.get_status_display }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Closing Date:</div>
+                    <div class="info-value">{{ application.job.closing_date|date:"F d, Y" }}</div>
+                </div>
+            </div>
+
+            <!-- Application Documents -->
+            <div class="detail-section">
+                <h3><i class="fas fa-file-alt"></i> Application Documents</h3>
+                <div class="info-row">
+                    <div class="info-label">Resume:</div>
+                    <div class="info-value">
+                        {% if application.resume %}
+                        <a href="{{ application.resume.url }}" target="_blank" class="file-download">
+                            <i class="fas fa-file-pdf"></i> Download Resume
+                        </a>
+                        {% else %}
+                        <span class="text-muted">No resume uploaded</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Cover Letter:</div>
+                    <div class="info-value">
+                        {% if application.cover_letter %}
+                        <a href="{{ application.cover_letter.url }}" target="_blank" class="file-download">
+                            <i class="fas fa-file-alt"></i> Download Cover Letter
+                        </a>
+                        {% else %}
+                        <span class="text-muted">No cover letter uploaded</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="detail-section">
+                <h3><i class="fas fa-tools"></i> Quick Actions</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="info-row">
+                            <div class="info-label">Contact Applicant:</div>
+                            <div class="info-value">
+                                <a href="mailto:{{ application.email }}?subject=Re: {{ application.job.title }} Application"
+                                    class="btn"
+                                    style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none;">
+                                    <i class="fas fa-envelope"></i> Send Email
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="info-row">
+                            <div class="info-label">View Job Posting:</div>
+                            <div class="info-value">
+                                <a href="{% url 'career-detail' application.job.id %}" target="_blank" class="btn"
+                                    style="background: linear-gradient(87deg, #3aaf85 0%, #2ebb88 100%); color: white; padding: 0.5rem 1rem; border-radius: 6px; text-decoration: none;">
+                                    <i class="fas fa-external-link-alt"></i> View Job
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="nav-buttons">
+            <a href="{% url 'staff_job_applications' %}" class="btn btn-lg me-3"
+                style="background: linear-gradient(87deg, #242e4c 0%, #1c2540 100%); color: white; border: none;">
+                <i class="fas fa-arrow-left"></i> Back to Applications
+            </a>
+            <a href="{% url 'staff_job_management' %}" class="btn btn-lg"
+                style="background: linear-gradient(87deg, #ffcd11 0%, #ffc107 100%); color: #1c2540; border: none;">
+                <i class="fas fa-briefcase"></i> Job Management
+            </a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
